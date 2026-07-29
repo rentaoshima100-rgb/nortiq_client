@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+build/
+.env
+.env.local
+.env*.local
+next-env.d.ts
+*.tsbuildinfo
+
+# ウィジェットのビルド成果物（scripts/build-widget.mjs が生成する）
+public/w.js
+public/w.js.map
+
+.DS_Store
+Thumbs.db
+.vercel

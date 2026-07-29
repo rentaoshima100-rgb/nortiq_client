@@ -1,0 +1,19 @@
+# Vercel CLI からデプロイするときに絶対に送らないもの
+.env
+.env.local
+.env*.local
+
+node_modules
+.next
+out
+
+# 検証用のデモサイト（別オリジンで配信する前提のもの）
+demo
+
+# ローカル専用のスクリプト
+scripts/serve-demo.mjs
+
+# 生成物（ビルドで作られる）
+public/w.js
+public/w.js.map
+*.tsbuildinfo
