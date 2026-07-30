@@ -32,6 +32,15 @@ export async function GET() {
   return json({
     ok: true,
     appUrl: appUrl(),
+    // どのデプロイ・どの環境の値を見ているのかを確定させるため。
+    // 「環境変数を直したのに変わらない」ときは、たいてい別の環境か
+    // 古いデプロイを見ている。
+    deployment: {
+      env: process.env.VERCEL_ENV ?? null, // production | preview | development
+      commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
+      deploymentId: process.env.VERCEL_DEPLOYMENT_ID ?? null,
+      region: process.env.VERCEL_REGION ?? null,
+    },
     env: {
       NEXT_PUBLIC_SUPABASE_URL: {
         set: !!supabaseUrl,
