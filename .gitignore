@@ -11,6 +11,11 @@ next-env.d.ts
 # ウィジェットのビルド成果物（scripts/build-widget.mjs が生成する）
 public/w.js
 public/w.js.map
+worker/vendor/
+
+# 撮影の出力
+shots/
+.nq/
 
 .DS_Store
 Thumbs.db

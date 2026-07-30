@@ -68,9 +68,31 @@ async function verifySha1() {
   console.log('  sha1: widget と Node の実装が一致しました');
 }
 
+/**
+ * リプレイ検証ハーネス（6.7）に渡す照合器。
+ * ウィジェット本体と同じ locator.ts を束ねる。別実装にすると、
+ * 測っているものが本番と違うものになる。
+ */
+async function buildReplayBundle() {
+  const out = join(root, 'worker/vendor/locator-bundle.js');
+  mkdirSync(dirname(out), { recursive: true });
+  await build({
+    entryPoints: [join(root, 'widget/src/replay-entry.ts')],
+    outfile: out,
+    bundle: true,
+    format: 'iife',
+    target: ['es2019'],
+    platform: 'browser',
+    minify: false,
+    logLevel: 'silent',
+  });
+  console.log('  worker/vendor/locator-bundle.js を更新しました');
+}
+
 async function run() {
   mkdirSync(join(root, 'public'), { recursive: true });
   await verifySha1();
+  await buildReplayBundle();
 
   if (watch) {
     const ctx = await context(options);

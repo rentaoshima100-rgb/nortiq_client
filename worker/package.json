@@ -1,0 +1,16 @@
+{
+  "name": "nortiq-revise-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "撮影・レイアウトマップ・差分（設計 7章）。アプリ本体と依存を分ける。",
+  "scripts": {
+    "capture": "node cli.mjs",
+    "determinism": "node cli.mjs --twice"
+  },
+  "dependencies": {
+    "pg": "^8.22.0",
+    "playwright": "^1.49.1",
+    "sharp": "^0.33.5"
+  }
+}
