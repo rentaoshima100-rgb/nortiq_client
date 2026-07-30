@@ -21,7 +21,7 @@ export interface ComposerOptions {
   target: Element;
   siteSha: string | null;
   pagePath: string;
-  onSubmitted: (res: { id: string; seq: number }) => void;
+  onSubmitted: (res: { id: string; seq: number; carriedOver?: boolean }) => void;
   onClose: () => void;
 }
 

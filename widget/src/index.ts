@@ -9,6 +9,7 @@
  */
 import { createApi, type Api, type PinDTO } from './api';
 import { openComposer, type Composer } from './composer';
+import { openFeedback } from './feedback';
 import { findByLocator } from './locator';
 import { CSS_TEXT, PAGE_CSS } from './styles';
 import { docRect, el, fmtDate, isSelectable, jaLabel, shortLabel } from './util';
@@ -102,7 +103,7 @@ function boot(): void {
 
   const api = createApi(apiBase, token, projectKey);
   api.init().then(
-    () => start(api, projectKey),
+    (info) => start(api, projectKey, info.project),
     (e: unknown) => {
       // 401 は「このサイトの招待ではない / 失効した」。静かに捨てる。
       const status = (e as { status?: number }).status;
@@ -117,7 +118,11 @@ function boot(): void {
   );
 }
 
-function start(api: Api, projectKey: string): void {
+function start(
+  api: Api,
+  projectKey: string,
+  project: { name: string; clientName: string },
+): void {
   /* ── ホストと Shadow DOM ───────────────────────────────────── */
   const host = document.createElement('nq-revise');
   host.style.cssText =
@@ -155,6 +160,15 @@ function start(api: Api, projectKey: string): void {
   bar.style.display = 'none';
   layer.appendChild(bar);
 
+  // 依頼一覧タブ（画面B / E）
+  const tab = el('button', 'tab');
+  const tabLabel = el('span', undefined, '依頼一覧');
+  const tabCount = el('span', 'n', '0');
+  tab.appendChild(tabLabel);
+  tab.appendChild(tabCount);
+  tab.style.display = 'none';
+  layer.appendChild(tab);
+
   // FAB
   const fab = el('button', 'fab');
   fab.innerHTML = PENCIL;
@@ -174,6 +188,8 @@ function start(api: Api, projectKey: string): void {
   let pageStyle: HTMLStyleElement | null = null;
   let lastPath = currentPagePath();
   let pendingPin: number | null = readPinTarget();
+  let feedback: { destroy(): void } | null = null;
+  let tabReady = false;
 
   updateHint();
 
@@ -196,7 +212,54 @@ function start(api: Api, projectKey: string): void {
       fab.innerHTML = CLOSE_ICON;
       fab.classList.add('on');
     }
+    // 選択中・入力中はタブを引っ込める（重なって邪魔になる）
+    tab.style.display = tabReady && mode === 'idle' ? '' : 'none';
   }
+
+  /** ラウンドの状況をタブに反映する（8.2 のフリーズ予告・8.6 の確認待ち） */
+  function loadSummary() {
+    api.getRounds().then(
+      (r) => {
+        tabReady = true;
+        tabCount.textContent = String(r.requests.length);
+        const needsAction = !!r.round && r.round.canConfirm;
+        if (needsAction) tab.classList.add('alert');
+        else tab.classList.remove('alert');
+        tabLabel.textContent = needsAction ? 'ご確認をお願いします' : '依頼一覧';
+        updateHint();
+      },
+      () => {
+        /* 取れなくてもサイトの邪魔はしない */
+      },
+    );
+  }
+
+  function toggleFeedback() {
+    if (feedback) {
+      feedback.destroy();
+      feedback = null;
+      return;
+    }
+    reset();
+    feedback = openFeedback({
+      api,
+      layer,
+      projectName: project.name,
+      clientName: project.clientName,
+      onClose: () => {
+        if (feedback) {
+          feedback.destroy();
+          feedback = null;
+        }
+      },
+      onChanged: () => {
+        loadSummary();
+        loadPins();
+      },
+    });
+  }
+
+  tab.addEventListener('click', toggleFeedback);
 
   fab.addEventListener('click', () => {
     if (mode === 'idle') enterSelect();
@@ -205,6 +268,10 @@ function start(api: Api, projectKey: string): void {
 
   /* ── 選択モード ────────────────────────────────────────────── */
   function enterSelect() {
+    if (feedback) {
+      feedback.destroy();
+      feedback = null;
+    }
     mode = 'selecting';
     pinsLayer.style.pointerEvents = 'none';
     if (!pageStyle) {
@@ -336,8 +403,13 @@ function start(api: Api, projectKey: string): void {
       onClose: () => reset(),
       onSubmitted: (res) => {
         reset();
-        toast('ご依頼を受け付けました（#' + res.seq + '）');
+        toast(
+          res.carriedOver
+            ? 'ご依頼を受け付けました（#' + res.seq + '）※次のラウンドに持ち越します'
+            : 'ご依頼を受け付けました（#' + res.seq + '）',
+        );
         loadPins();
+        loadSummary();
       },
     });
   }
@@ -559,6 +631,7 @@ function start(api: Api, projectKey: string): void {
   }, 1000);
 
   loadPins();
+  loadSummary();
   // 画像の遅延読み込みでレイアウトが動くため、少し置いてもう一度合わせる
   setTimeout(drawPins, 1500);
 

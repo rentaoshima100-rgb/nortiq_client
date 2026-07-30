@@ -159,6 +159,89 @@ textarea:focus { border-color: #2563eb; background: #fff; }
   border-radius: 999px; padding: 2px 8px; font-weight: 600;
 }
 
+/* ── 依頼一覧タブ（画面B / E）───────────────────── */
+.tab {
+  position: fixed; right: 24px; bottom: 92px;
+  display: flex; align-items: center; gap: 7px;
+  background: #fff; color: #0f172a; border: 1px solid #e2e8f0;
+  border-radius: 999px; padding: 9px 15px; font-size: 13px; font-weight: 600;
+  box-shadow: 0 4px 14px rgba(15,23,42,.12); pointer-events: auto;
+}
+.tab:hover { background: #f8fafc; }
+.tab .n {
+  background: #2563eb; color: #fff; border-radius: 999px;
+  min-width: 20px; height: 20px; padding: 0 6px; font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
+}
+.tab.alert { background: #2563eb; color: #fff; border-color: #2563eb; }
+.tab.alert .n { background: rgba(255,255,255,.25); }
+
+.backdrop {
+  position: fixed; inset: 0; background: rgba(15,23,42,.28); pointer-events: auto;
+}
+.sheetR {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 420px; max-width: 100vw;
+  background: #fff; box-shadow: -8px 0 32px rgba(15,23,42,.18);
+  display: flex; flex-direction: column; pointer-events: auto;
+}
+@media (max-width: 480px) {
+  .sheetR { width: 100vw; top: auto; height: 88vh; border-radius: 16px 16px 0 0; }
+}
+.sheetR .hd { padding: 18px 20px 14px; border-bottom: 1px solid #f1f5f9; }
+.sheetR .hd h2 { font-size: 18px; font-weight: 800; }
+.sheetR .hd .sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+.sheetR .hd .x {
+  position: absolute; right: 14px; top: 14px; width: 30px; height: 30px;
+  border-radius: 8px; color: #94a3b8; font-size: 18px; line-height: 1;
+}
+.sheetR .bd { flex: 1; overflow-y: auto; }
+
+.quota { margin: 16px 20px; background: #eff6ff; border-radius: 10px; padding: 14px 16px; }
+.quota .top { display: flex; align-items: baseline; justify-content: space-between; }
+.quota .lb { font-size: 12px; color: #64748b; }
+.quota .val { font-size: 15px; font-weight: 800; color: #2563eb; }
+.quota .bar { height: 6px; border-radius: 999px; background: #dbeafe; margin: 10px 0 8px; overflow: hidden; }
+.quota .bar i { display: block; height: 100%; background: #2563eb; border-radius: 999px; }
+.quota .note { font-size: 11px; color: #64748b; }
+.quota.paid { background: #fff7ed; }
+.quota.paid .val { color: #c2410c; }
+.quota.paid .bar { background: #fed7aa; }
+.quota.paid .bar i { background: #ea580c; }
+
+.notice { margin: 0 20px 16px; border-radius: 10px; padding: 14px 16px; font-size: 13px; }
+.notice.warn { background: #fff7ed; color: #9a3412; }
+.notice.info { background: #f1f5f9; color: #475569; }
+.notice h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.notice .acts { display: flex; gap: 8px; margin-top: 12px; }
+.notice .acts button { border-radius: 8px; padding: 9px 14px; font-size: 13px; font-weight: 600; }
+.notice .acts .yes { background: #2563eb; color: #fff; flex: 1; }
+.notice .acts .no { background: #fff; color: #0f172a; border: 1px solid #e2e8f0; }
+
+.filters { display: flex; gap: 8px; padding: 0 20px 12px; }
+.filters button {
+  border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 600;
+  background: #f1f5f9; color: #475569;
+}
+.filters button.on { background: #0f172a; color: #fff; }
+
+.item { display: flex; gap: 12px; padding: 14px 20px; border-top: 1px solid #f1f5f9; }
+.item .no {
+  width: 24px; height: 24px; border-radius: 50%; background: #2563eb; color: #fff;
+  font-size: 11px; font-weight: 700; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0;
+}
+.item .no.done { background: #94a3b8; }
+.item .m { flex: 1; min-width: 0; }
+.item .meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #94a3b8; }
+.item .st { margin-left: auto; border-radius: 999px; padding: 2px 8px; font-weight: 600; }
+.item .st.received { background: #f1f5f9; color: #475569; }
+.item .st.in_progress { background: #dbeafe; color: #1d4ed8; }
+.item .st.done { background: #dcfce7; color: #15803d; }
+.item .st.carry { background: #fef3c7; color: #b45309; }
+.item .bd2 { font-size: 13px; margin-top: 4px; }
+.item .ck { margin-right: 2px; accent-color: #2563eb; width: 16px; height: 16px; }
+.empty { padding: 40px 20px; text-align: center; font-size: 13px; color: #94a3b8; }
+
 /* ── トースト ────────────────────────────────────── */
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%);

@@ -16,6 +16,38 @@ export interface PinDTO {
   createdAt: string;
 }
 
+export interface RoundDTO {
+  id: string;
+  seq: number;
+  status: string;
+  statusLabel: string;
+  countsFree: boolean;
+  rejectCount: number;
+  itemCount: number;
+  maxItems: number;
+  freezeInDays: number | null;
+  confirmInDays: number | null;
+  canConfirm: boolean;
+  canReject: boolean;
+}
+
+export interface RoundsResponse {
+  contract: { freeRounds: number; usedFreeRounds: number; currentIndex: number };
+  round: RoundDTO | null;
+  carriedOverCount: number;
+  requests: {
+    id: string;
+    seq: number;
+    body: string;
+    status: string;
+    category: string;
+    pagePath: string;
+    createdAt: string;
+    inCurrentRound: boolean;
+    carriedOver: boolean;
+  }[];
+}
+
 export interface CreateRequestPayload {
   projectKey: string;
   body: string;
@@ -86,8 +118,29 @@ export function createApi(base: string, token: string, projectKey: string) {
       return call<{ pins: PinDTO[] }>('/api/w/pins' + q, { method: 'GET' });
     },
 
-    createRequest(payload: CreateRequestPayload): Promise<{ id: string; seq: number }> {
-      return call<{ id: string; seq: number }>('/api/w/requests', {
+    getRounds(): Promise<RoundsResponse> {
+      return call<RoundsResponse>(
+        '/api/w/rounds?projectKey=' + encodeURIComponent(projectKey),
+        { method: 'GET' },
+      );
+    },
+
+    confirmRound(roundId: string): Promise<{ ok: true }> {
+      return call<{ ok: true }>('/api/w/rounds/' + roundId + '/confirm', {
+        method: 'POST',
+        body: JSON.stringify({ projectKey }),
+      });
+    },
+
+    rejectRound(roundId: string, requestIds: string[]): Promise<{ ok: true; rejectCount: number }> {
+      return call<{ ok: true; rejectCount: number }>('/api/w/rounds/' + roundId + '/reject', {
+        method: 'POST',
+        body: JSON.stringify({ projectKey, requestIds }),
+      });
+    },
+
+    createRequest(payload: CreateRequestPayload): Promise<{ id: string; seq: number; carriedOver?: boolean }> {
+      return call<{ id: string; seq: number; carriedOver?: boolean }>('/api/w/requests', {
         method: 'POST',
         body: JSON.stringify(payload),
       });

@@ -4,8 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auditedUpdate, logEvent } from '@/lib/events';
 import { newToken, sha256hex } from '@/lib/hash';
+import { advanceRound, openRound } from '@/lib/rounds';
 import { adminDb } from '@/lib/supabase/admin';
 import { requireStaff, staffActor } from '@/lib/staff';
+import type { ProjectRow } from '@/lib/types';
 
 /* ── 案件の作成 ─────────────────────────────────────────────── */
 
@@ -145,6 +147,63 @@ export async function revokeInvite(formData: FormData): Promise<void> {
     after: { token_hash: tokenHash },
   });
 
+  revalidatePath(`/admin/projects/${projectId}`);
+}
+
+/* ── ラウンド（8.2 / 8.3 / 8.6）──────────────────────────────── */
+
+export async function roundAdvance(formData: FormData): Promise<void> {
+  const user = await requireStaff();
+  const roundId = String(formData.get('round_id') || '');
+  const projectId = String(formData.get('project_id') || '');
+  const to = String(formData.get('to') || '') as 'in_progress' | 'published' | 'frozen';
+  if (!roundId || !projectId) return;
+
+  const db = adminDb();
+  const { data: project } = await db.from('projects').select('*').eq('id', projectId).maybeSingle();
+  if (!project) return;
+
+  await advanceRound(projectId, roundId, to, staffActor(user), project as ProjectRow, db);
+  revalidatePath(`/admin/projects/${projectId}`);
+}
+
+/** 無償カウントに入れるかどうか（5.2 の監査対象） */
+export async function roundToggleFree(formData: FormData): Promise<void> {
+  const user = await requireStaff();
+  const roundId = String(formData.get('round_id') || '');
+  const projectId = String(formData.get('project_id') || '');
+  const value = String(formData.get('value') || '') === 'true';
+  if (!roundId || !projectId) return;
+
+  await auditedUpdate({
+    table: 'rounds',
+    id: roundId,
+    patch: { counts_free: value },
+    projectId,
+    actor: staffActor(user),
+    entity: 'round',
+    action: 'round.counts_free_changed',
+  });
+  revalidatePath(`/admin/projects/${projectId}`);
+}
+
+/** 次のラウンドを開く（持ち越し分を引き取る。8.4） */
+export async function roundOpen(formData: FormData): Promise<void> {
+  const user = await requireStaff();
+  const projectId = String(formData.get('project_id') || '');
+  if (!projectId) return;
+
+  const db = adminDb();
+  const roundId = await openRound(projectId, db);
+  if (roundId) {
+    await logEvent({
+      projectId,
+      actor: staffActor(user),
+      entity: 'round',
+      entityId: roundId,
+      action: 'round.opened',
+    });
+  }
   revalidatePath(`/admin/projects/${projectId}`);
 }
 

@@ -2,7 +2,15 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { appUrl, ATTACHMENTS_BUCKET } from '@/lib/env';
 import { describeTarget, positionInPage, siteViewUrl } from '@/lib/describe';
-import { revokeInvite } from '@/app/admin/actions';
+import { revokeInvite, roundAdvance, roundOpen, roundToggleFree } from '@/app/admin/actions';
+import {
+  daysUntil,
+  jaFreezeReason,
+  jaStatus,
+  runDueTransitions,
+  usedFreeRounds,
+  type RoundRow,
+} from '@/lib/rounds';
 import { adminDb } from '@/lib/supabase/admin';
 import type { Locator } from '@/lib/types';
 import {
@@ -22,12 +30,65 @@ function fmt(iso: string): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+function RoundButton({
+  projectId,
+  roundId,
+  to,
+  label,
+  primary,
+}: {
+  projectId: string;
+  roundId: string;
+  to: 'in_progress' | 'published' | 'frozen';
+  label: string;
+  primary?: boolean;
+}) {
+  return (
+    <form action={roundAdvance}>
+      <input type="hidden" name="project_id" value={projectId} />
+      <input type="hidden" name="round_id" value={roundId} />
+      <input type="hidden" name="to" value={to} />
+      <button
+        className={
+          primary
+            ? 'rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-blue-700'
+            : 'rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50'
+        }
+      >
+        {label}
+      </button>
+    </form>
+  );
+}
+
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const db = adminDb();
 
   const { data: project } = await db.from('projects').select('*').eq('id', id).maybeSingle();
   if (!project) notFound();
+
+  // 期限切れのフリーズ・自動確認に追いついてから描く（8.2 / 8.6）
+  await runDueTransitions(id, db);
+
+  const [{ data: rounds }, usedFree] = await Promise.all([
+    db
+      .from('rounds')
+      .select('*')
+      .eq('project_id', id)
+      .order('seq', { ascending: false })
+      .limit(20),
+    usedFreeRounds(id, db),
+  ]);
+  const active = (rounds ?? []).find((r) =>
+    ['open', 'frozen', 'in_progress', 'published'].includes(r.status),
+  ) as RoundRow | undefined;
+
+  const { count: carriedOver } = await db
+    .from('requests')
+    .select('id', { count: 'exact', head: true })
+    .eq('project_id', id)
+    .is('round_id', null);
 
   const [{ data: requests }, { data: sessions }] = await Promise.all([
     db
@@ -145,6 +206,153 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                         </button>
                       </form>
                     )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-6">
+        <div className="mb-4 flex items-baseline justify-between">
+          <h2 className="text-sm font-bold">ラウンド</h2>
+          <div className="text-xs text-slate-500">
+            無償修正{' '}
+            <span
+              className={
+                usedFree >= project.free_rounds
+                  ? 'font-bold text-amber-700'
+                  : 'font-bold text-slate-800'
+              }
+            >
+              {usedFree} / {project.free_rounds}
+            </span>{' '}
+            使用
+            {usedFree >= project.free_rounds && '（以降は有償）'}
+          </div>
+        </div>
+
+        {active ? (
+          <div className="rounded-lg border border-slate-200 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-base font-bold">ラウンド {active.seq}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                {jaStatus(active.status)}
+              </span>
+              {!active.counts_free && (
+                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                  有償（カウント外）
+                </span>
+              )}
+              {active.reject_count > 0 && (
+                <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
+                  差し戻し {active.reject_count} 回
+                </span>
+              )}
+            </div>
+
+            <div className="mt-2 space-y-0.5 text-xs text-slate-500">
+              {active.status === 'open' && (
+                <p>
+                  受付中 ／ あと {daysUntil(active.freeze_due_at) ?? '—'} 日 新規依頼が無ければ自動で締切
+                  ／ 上限 {project.max_items_per_round} 件で即時締切
+                </p>
+              )}
+              {active.frozen_at && <p>締切: {fmt(active.frozen_at)}（{jaFreezeReason(active.freeze_reason)}）</p>}
+              {active.published_at && (
+                <p>
+                  公開: {fmt(active.published_at)} ／ 自動確認まで あと{' '}
+                  {daysUntil(active.confirm_due_at) ?? '—'} 日
+                </p>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {active.status === 'open' && (
+                <RoundButton projectId={project.id} roundId={active.id} to="frozen" label="受付を締め切る" primary />
+              )}
+              {active.status === 'frozen' && (
+                <RoundButton projectId={project.id} roundId={active.id} to="in_progress" label="修正に着手" primary />
+              )}
+              {active.status === 'in_progress' && (
+                <RoundButton
+                  projectId={project.id}
+                  roundId={active.id}
+                  to="published"
+                  label="公開した（確認依頼を出す）"
+                  primary
+                />
+              )}
+              {active.status === 'in_progress' && (
+                <RoundButton projectId={project.id} roundId={active.id} to="frozen" label="着手前に戻す" />
+              )}
+              <form action={roundToggleFree}>
+                <input type="hidden" name="project_id" value={project.id} />
+                <input type="hidden" name="round_id" value={active.id} />
+                <input type="hidden" name="value" value={String(!active.counts_free)} />
+                <button className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">
+                  {active.counts_free ? '無償カウントから外す' : '無償カウントに戻す'}
+                </button>
+              </form>
+            </div>
+
+            {active.status === 'in_progress' && (
+              <p className="mt-3 text-xs text-slate-400">
+                公開はクライアントへの確認依頼を意味します。Phase 1 以降は、ここに
+                「全ジョブが終端」「差分に intended=false が無い」という条件が加わります（9.8）。
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center">
+            <p className="text-sm text-slate-500">進行中のラウンドはありません</p>
+            {(carriedOver ?? 0) > 0 && (
+              <p className="mt-1 text-xs text-amber-700">
+                持ち越しの依頼が {carriedOver} 件あります。ラウンドを開くと引き取ります。
+              </p>
+            )}
+            <form action={roundOpen} className="mt-3">
+              <input type="hidden" name="project_id" value={project.id} />
+              <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                ラウンドを開く
+              </button>
+            </form>
+          </div>
+        )}
+
+        {rounds && rounds.length > 0 && (
+          <table className="mt-5 w-full text-xs">
+            <thead className="text-left text-slate-400">
+              <tr>
+                <th className="py-1.5 font-medium">#</th>
+                <th className="py-1.5 font-medium">状態</th>
+                <th className="py-1.5 font-medium">カウント</th>
+                <th className="py-1.5 font-medium">締切</th>
+                <th className="py-1.5 font-medium">公開</th>
+                <th className="py-1.5 font-medium">確認</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rounds.map((r) => (
+                <tr key={r.id} className="border-t border-slate-100">
+                  <td className="py-2 tabular-nums">{r.seq}</td>
+                  <td className="py-2">{jaStatus(r.status)}</td>
+                  <td className="py-2">
+                    {r.counts_free ? (
+                      <span className="text-slate-600">無償に算入</span>
+                    ) : (
+                      <span className="text-amber-700">カウント外</span>
+                    )}
+                  </td>
+                  <td className="py-2 text-slate-500">
+                    {r.frozen_at ? fmt(r.frozen_at) : '—'}
+                  </td>
+                  <td className="py-2 text-slate-500">
+                    {r.published_at ? fmt(r.published_at) : '—'}
+                  </td>
+                  <td className="py-2 text-slate-500">
+                    {r.confirmed_at ? fmt(r.confirmed_at) : '—'}
                   </td>
                 </tr>
               ))}

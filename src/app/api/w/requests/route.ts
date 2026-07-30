@@ -4,6 +4,7 @@ import { errorJson, json } from '@/lib/http';
 import { normalizePagePath, sanitizeBody, sanitizeOuterHtml } from '@/lib/sanitize';
 import { CreateRequestSchema } from '@/lib/schemas';
 import { adminDb } from '@/lib/supabase/admin';
+import { afterRequestCreated, attachRound, runDueTransitions } from '@/lib/rounds';
 import { authenticateWidget } from '@/lib/widget-auth';
 
 export const runtime = 'nodejs';
@@ -46,15 +47,9 @@ export async function POST(req: Request) {
     );
   }
 
-  // 進行中のラウンドがあれば紐づける。無ければ round_id = null のまま貯める（8.4）。
-  const { data: openRound } = await db
-    .from('rounds')
-    .select('id')
-    .eq('project_id', auth.project.id)
-    .eq('status', 'open')
-    .order('seq', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // 期限切れのフリーズ・自動確認に追いついてから行き先を決める
+  await runDueTransitions(auth.project.id, db);
+  const roundId = await attachRound(auth.project.id, db);
 
   // 採番は project_counters で行う。max(seq)+1 は同時投稿で衝突する（5.3）。
   const { data: seq, error: seqErr } = await db.rpc('next_request_seq', {
@@ -69,7 +64,7 @@ export async function POST(req: Request) {
     .from('requests')
     .insert({
       project_id: auth.project.id,
-      round_id: openRound?.id ?? null,
+      round_id: roundId,
       seq,
       body: sanitizeBody(input.body),
       page_path: normalizePagePath(input.pagePath),
@@ -114,5 +109,11 @@ export async function POST(req: Request) {
     db,
   );
 
-  return json({ id: inserted.id, seq: inserted.seq }, { status: 201, headers });
+  // フリーズ予告の引き直しと、件数上限での即時フリーズ（8.2 / 8.5）
+  await afterRequestCreated(auth.project, roundId, db);
+
+  return json(
+    { id: inserted.id, seq: inserted.seq, carriedOver: roundId === null },
+    { status: 201, headers },
+  );
 }
