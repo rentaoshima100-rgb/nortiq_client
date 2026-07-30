@@ -29,6 +29,44 @@ node cli.mjs --url https://example.com --twice          # 決定性の検査
 を掛けた実寸で超える。設計 13.2 が「縦 15000px を超えるページはタイル分割」と
 書いている箇所だが、**CSS px ではなく実寸で判定する必要がある**。
 
+## スナップショットの保存（7.1 / 7.7）
+
+```bash
+node snapshot.mjs --project loop-2026 --phase initial
+node snapshot.mjs --project loop-2026 --phase before --round <round_id>
+node snapshot.mjs --project loop-2026 --phase after --url <不変デプロイURL> --sha <commit>
+```
+
+ページ×幅で撮り、画像とレイアウトマップを Storage に、`snapshots` / `snapshot_shots` に保存する。
+あわせて**同じ DOM のまま**ロケータを当て直し、その bbox からピン箇所を切り出して
+`request_shots` に入れる。撮影と別の DOM で測ると座標がズレるので、ここは分けない。
+
+切り出す幅は、指摘時の `viewport_w` に一番近いものを選ぶ。
+失敗時は3回リトライし、それでも駄目なら `status='failed'`。
+**部分成功のスナップショットは比較に使わない**（7.7）。
+
+## 比較（7.4）
+
+```bash
+node compare.mjs --before <snapshot_id> --after <snapshot_id>
+```
+
+レイアウトマップを結合 → 4分類 → `intended` 判定 → `diffs` に記録する。
+ピクセル差分は判定に使わない。
+
+### 実測
+
+同一サイトを2回撮って比較（loop-construction）: 3幅とも **changed 0 / added 0 / removed 0**。
+
+意図的に3種類の変更を入れたデモサイト: **changed 5 / moved 1（無視）** を3幅とも検出。
+内訳は文言1・色3・画像1で、入れた変更と過不足なく一致した。
+
+`element_key` には **cssPath を使う**。`nq-id` はループ描画で重複するため一意キーにできない
+（3枚のカードの `<p>` が同じ id を持つので、同一バッチ内で unique 制約に当たる）。
+
+同一 `nq-id` グループ内の対応付けは `src` 属性で行うため、**素材を差し替えると判別子自体が
+変わる**。文言変更で textHash が変わるのと同じ構造で、対処も同じ（7.4 末尾）。
+
 ## リプレイ検証（6.7）
 
 保存済みロケータを後のビルドの DOM に当て直し、段1〜4のどこに落ちるかを実測する。
