@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { appUrl } from '@/lib/env';
+import { appUrl, ATTACHMENTS_BUCKET } from '@/lib/env';
+import { describeTarget, positionInPage, siteViewUrl } from '@/lib/describe';
 import { revokeInvite } from '@/app/admin/actions';
 import { adminDb } from '@/lib/supabase/admin';
 import type { Locator } from '@/lib/types';
@@ -31,7 +32,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const [{ data: requests }, { data: sessions }] = await Promise.all([
     db
       .from('requests')
-      .select('id, seq, body, category, subtype, status, page_path, viewport_w, locator, created_at')
+      .select(
+        'id, seq, body, category, subtype, status, page_path, viewport_w, locator, outer_html, created_at',
+      )
       .eq('project_id', id)
       .order('seq', { ascending: false })
       .limit(200),
@@ -44,12 +47,31 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   const reqIds = (requests ?? []).map((r) => r.id);
   const attCount = new Map<string, number>();
+  const firstAtt = new Map<string, { path: string; kind: string }>();
+  const thumb = new Map<string, string>();
+
   if (reqIds.length) {
     const { data: atts } = await db
       .from('attachments')
-      .select('request_id')
-      .in('request_id', reqIds);
-    for (const a of atts ?? []) attCount.set(a.request_id, (attCount.get(a.request_id) ?? 0) + 1);
+      .select('request_id, storage_path, kind, created_at')
+      .in('request_id', reqIds)
+      .order('created_at');
+    for (const a of atts ?? []) {
+      attCount.set(a.request_id, (attCount.get(a.request_id) ?? 0) + 1);
+      if (!firstAtt.has(a.request_id)) {
+        firstAtt.set(a.request_id, { path: a.storage_path, kind: a.kind });
+      }
+    }
+    // 一覧に出すサムネイルの署名URLは1回でまとめて発行する
+    const paths = Array.from(firstAtt.values()).map((v) => v.path);
+    if (paths.length) {
+      const { data: urls } = await db.storage
+        .from(ATTACHMENTS_BUCKET)
+        .createSignedUrls(paths, 600);
+      for (const u of urls ?? []) {
+        if (u.signedUrl && u.path) thumb.set(u.path, u.signedUrl);
+      }
+    }
   }
 
   const snippet = `<script src="${appUrl()}/w.js" data-project="${project.snippet_key}" defer></script>`;
@@ -151,26 +173,67 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
               <tbody>
                 {requests.map((r) => {
                   const loc = r.locator as Locator;
+                  const pos = positionInPage(loc);
+                  const att = firstAtt.get(r.id);
+                  const thumbUrl = att ? thumb.get(att.path) : undefined;
                   return (
                     <tr key={r.id} className="border-t border-slate-100 align-top">
                       <td className="px-3 py-3 tabular-nums text-slate-400">{r.seq}</td>
                       <td className="px-3 py-3">
-                        <Link href={`/admin/requests/${r.id}`} className="hover:underline">
-                          {r.body.length > 60 ? r.body.slice(0, 60) + '…' : r.body}
-                        </Link>
-                        <div className="mt-0.5 text-xs text-slate-400">
-                          {fmt(r.created_at)}
-                          {attCount.get(r.id) ? ` ／ 画像${attCount.get(r.id)}枚` : ''}
+                        <div className="flex gap-3">
+                          {thumbUrl && (
+                            <a href={thumbUrl} target="_blank" rel="noreferrer" className="shrink-0">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={thumbUrl}
+                                alt=""
+                                className="h-12 w-16 rounded border border-slate-200 bg-slate-50 object-cover"
+                              />
+                            </a>
+                          )}
+                          <div className="min-w-0">
+                            <Link href={`/admin/requests/${r.id}`} className="hover:underline">
+                              {r.body.length > 60 ? r.body.slice(0, 60) + '…' : r.body}
+                            </Link>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
+                              <span>{fmt(r.created_at)}</span>
+                              {att && (
+                                <span
+                                  className={
+                                    att.kind === 'reference'
+                                      ? 'rounded-full bg-amber-50 px-1.5 text-amber-700'
+                                      : 'rounded-full bg-blue-50 px-1.5 text-blue-700'
+                                  }
+                                >
+                                  {att.kind === 'reference' ? '参考イメージ' : '差し替え素材'}
+                                  {(attCount.get(r.id) ?? 0) > 1 ? ` ×${attCount.get(r.id)}` : ''}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td className="px-3 py-3 text-xs text-slate-500">
-                        <div>{r.page_path}</div>
+                        <div className="font-medium text-slate-700">
+                          {describeTarget(loc, r.outer_html)}
+                        </div>
+                        <div className="mt-0.5">
+                          {r.page_path} ／ {pos.label}（上から {pos.percent}%）
+                        </div>
                         <div className="text-slate-400">
                           {loc?.tag?.toLowerCase()}
                           {loc?.nqId ? ` · ${loc.nqId}` : ''}
                           {loc?.nqCount && loc.nqCount > 1 ? `[${loc.nqOrdinal}/${loc.nqCount}]` : ''}
-                          {` · ${r.viewport_w}px`}
+                          {` · ${r.viewport_w}px幅で指摘`}
                         </div>
+                        <a
+                          href={siteViewUrl(project.site_url, r.page_path, r.seq)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-1 inline-block font-medium text-blue-700 hover:underline"
+                        >
+                          サイトで見る →
+                        </a>
                       </td>
                       <td className="px-3 py-3">
                         <FieldSelect

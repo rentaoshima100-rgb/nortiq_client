@@ -139,6 +139,12 @@ textarea:focus { border-color: #2563eb; background: #fff; }
   border: 2px solid #fff;
 }
 .pin.done { background: #94a3b8; }
+.pin.flash { animation: nqpulse 1.1s ease-out 3; }
+@keyframes nqpulse {
+  0%   { box-shadow: 0 0 0 0 rgba(37,99,235,.7); }
+  70%  { box-shadow: 0 0 0 18px rgba(37,99,235,0); }
+  100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+}
 .pincard {
   position: absolute; width: 260px; background: #fff; border-radius: 10px;
   box-shadow: 0 12px 32px rgba(15,23,42,.22); padding: 12px 14px;

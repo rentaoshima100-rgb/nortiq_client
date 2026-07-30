@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ATTACHMENTS_BUCKET } from '@/lib/env';
+import { describeTarget, positionInPage, siteViewUrl } from '@/lib/describe';
 import { adminDb } from '@/lib/supabase/admin';
 import type { AttachmentRow, Locator, MatchedRule, RequestRow } from '@/lib/types';
 
@@ -10,6 +11,34 @@ function fmt(iso: string): string {
   const d = new Date(iso);
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/**
+ * ページのどこを指しているかの見取り図。
+ * 縦がページ全体（docHeight）、横がビューポート幅。青い矩形が指摘された要素。
+ * Phase 1 のスナップショットが入るまで、社内が「どこ」を掴む唯一の手段になる。
+ */
+function PositionMap({ loc }: { loc: Locator }) {
+  const H = 200;
+  const docH = Math.max(1, loc.docHeight);
+  const vw = Math.max(1, loc.viewportW);
+  const top = Math.min(H - 3, Math.max(0, (loc.bbox.y / docH) * H));
+  const h = Math.max(3, Math.min(H - top, (loc.bbox.h / docH) * H));
+  const left = Math.min(97, Math.max(0, (loc.bbox.x / vw) * 100));
+  const w = Math.max(3, Math.min(100 - left, (loc.bbox.w / vw) * 100));
+
+  return (
+    <div
+      className="relative w-32 shrink-0 overflow-hidden rounded border border-slate-200 bg-slate-100"
+      style={{ height: H }}
+      title={`ページ全体 ${docH}px 中 y=${loc.bbox.y}px`}
+    >
+      <div
+        className="absolute rounded-sm bg-blue-600/70 ring-2 ring-blue-600"
+        style={{ top: `${top}px`, height: `${h}px`, left: `${left}%`, width: `${w}%` }}
+      />
+    </div>
+  );
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -29,6 +58,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   if (!data) notFound();
   const req = data as RequestRow;
   const loc = req.locator as Locator;
+  const pos = positionInPage(loc);
 
   const [{ data: atts }, { data: events }, { data: project }] = await Promise.all([
     db.from('attachments').select('*').eq('request_id', id).order('created_at'),
@@ -39,7 +69,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
       .eq('entity_id', id)
       .order('at', { ascending: false })
       .limit(50),
-    db.from('projects').select('id, name').eq('id', req.project_id).maybeSingle(),
+    db.from('projects').select('id, name, site_url').eq('id', req.project_id).maybeSingle(),
   ]);
 
   const files: { att: AttachmentRow; url: string | null }[] = [];
@@ -82,6 +112,43 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               </span>
             )}
           </Row>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-sm font-bold">どこの話か</h2>
+          {project?.site_url && (
+            <a
+              href={siteViewUrl(project.site_url, req.page_path, req.seq)}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+            >
+              サイトで見る →
+            </a>
+          )}
+        </div>
+        <div className="flex gap-5">
+          <PositionMap loc={loc} />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <p className="text-sm font-medium">{describeTarget(loc, req.outer_html)}</p>
+            <p className="text-xs text-slate-500">
+              {req.page_path} ／ {pos.label}（ページの上から {pos.percent}%）
+            </p>
+            <p className="text-xs text-slate-500">
+              指摘時のビューポート {req.viewport_w}×{req.viewport_h} ／ スクロール位置{' '}
+              {req.scroll_y}px ／ ページ全体 {loc.docHeight}px
+            </p>
+            <p className="text-xs text-slate-400">
+              要素の大きさ {loc.bbox.w}×{loc.bbox.h}px（左から {loc.bbox.x}px・上から {loc.bbox.y}
+              px）
+            </p>
+            <p className="pt-2 text-xs text-slate-400">
+              「サイトで見る」は、その箇所までスクロールしてピンを光らせます。開く側にも招待トークンが要るので、
+              持っていなければ案件画面で自分宛てに1本発行してください。
+            </p>
+          </div>
         </div>
       </section>
 

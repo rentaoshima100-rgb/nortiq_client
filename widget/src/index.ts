@@ -44,6 +44,7 @@ function acquireToken(projectKey: string): string | null {
     }
     const rest = (location.hash || '')
       .replace(/([#&])nq=[^&]*/, '$1')
+      .replace(/^#&/, '#')
       .replace(/[#&]+$/, '');
     const cleanHash = rest === '#' ? '' : rest;
     try {
@@ -58,6 +59,26 @@ function acquireToken(projectKey: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * 社内から「#nq-pin=3」で来たときに、その依頼の箇所まで飛んで光らせる。
+ * 依頼一覧に並ぶ「サイトで見る」の着地先。トークンの受け取りと同じく、
+ * 読んだ直後に URL から消す。
+ */
+function readPinTarget(): number | null {
+  const m = /[#&]nq-pin=(\d+)/.exec(location.hash || '');
+  if (!m) return null;
+  const seq = parseInt(m[1], 10);
+  const rest = (location.hash || '')
+    .replace(/([#&])nq-pin=[^&]*/, '$1')
+    .replace(/[#&]+$/, '');
+  try {
+    history.replaceState(null, '', location.pathname + location.search + (rest === '#' ? '' : rest));
+  } catch {
+    /* 失敗しても続行する */
+  }
+  return Number.isFinite(seq) ? seq : null;
 }
 
 function boot(): void {
@@ -152,6 +173,7 @@ function start(api: Api, projectKey: string): void {
   let pins: PinDTO[] = [];
   let pageStyle: HTMLStyleElement | null = null;
   let lastPath = currentPagePath();
+  let pendingPin: number | null = readPinTarget();
 
   updateHint();
 
@@ -432,6 +454,8 @@ function start(api: Api, projectKey: string): void {
   function drawPins() {
     pinsLayer.innerHTML = '';
     openCard = null;
+    const drawn = new Map<number, { node: HTMLElement; rect: ReturnType<typeof docRect> }>();
+
     for (const p of pins) {
       const hit = findByLocator(p.locator);
       if (!hit) continue; // 段4（stale）はサイト上には描かない（6.7）
@@ -445,6 +469,25 @@ function start(api: Api, projectKey: string): void {
         showCard(p, r);
       });
       pinsLayer.appendChild(node);
+      drawn.set(p.seq, { node, rect: r });
+    }
+
+    // 社内からの「サイトで見る」で来たとき、その箇所まで飛んで光らせる
+    if (pendingPin != null) {
+      const target = drawn.get(pendingPin);
+      const p = pins.find((x) => x.seq === pendingPin);
+      if (target && p) {
+        const seq = pendingPin;
+        pendingPin = null;
+        window.scrollTo({
+          top: Math.max(0, target.rect.y - window.innerHeight / 3),
+          behavior: 'smooth',
+        });
+        target.node.classList.add('flash');
+        setTimeout(() => target.node.classList.remove('flash'), 3600);
+        setTimeout(() => showCard(p, target.rect), 500);
+        toast('依頼 #' + seq + ' の箇所です');
+      }
     }
   }
 
@@ -518,6 +561,20 @@ function start(api: Api, projectKey: string): void {
   loadPins();
   // 画像の遅延読み込みでレイアウトが動くため、少し置いてもう一度合わせる
   setTimeout(drawPins, 1500);
+
+  // 指定された依頼にたどり着けないまま数秒経ったら、黙って終わらせない
+  if (pendingPin != null) {
+    setTimeout(() => {
+      if (pendingPin == null) return;
+      const seq = pendingPin;
+      pendingPin = null;
+      toast(
+        pins.some((x) => x.seq === seq)
+          ? '依頼 #' + seq + ' の箇所は、今のページでは特定できませんでした'
+          : '依頼 #' + seq + ' はこのページの依頼ではありません',
+      );
+    }, 4000);
+  }
 }
 
 try {
