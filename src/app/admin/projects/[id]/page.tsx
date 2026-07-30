@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { appUrl, ATTACHMENTS_BUCKET } from '@/lib/env';
+import { appUrl, ATTACHMENTS_BUCKET, SNAPSHOTS_BUCKET } from '@/lib/env';
 import { describeTarget, positionInPage, siteViewUrl } from '@/lib/describe';
 import { revokeInvite, roundAdvance, roundOpen, roundToggleFree } from '@/app/admin/actions';
 import {
@@ -110,6 +110,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const attCount = new Map<string, number>();
   const firstAtt = new Map<string, { path: string; kind: string }>();
   const thumb = new Map<string, string>();
+  const crop = new Map<string, { path: string; tier: string }>();
+  const cropUrl = new Map<string, string>();
 
   if (reqIds.length) {
     const { data: atts } = await db
@@ -131,6 +133,27 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         .createSignedUrls(paths, 600);
       for (const u of urls ?? []) {
         if (u.signedUrl && u.path) thumb.set(u.path, u.signedUrl);
+      }
+    }
+
+    // 指摘箇所の切り出し（7.1）。依頼ごとに最新の1枚。
+    const { data: shotRows } = await db
+      .from('request_shots')
+      .select('request_id, crop_path, match_tier')
+      .in('request_id', reqIds)
+      .order('id', { ascending: false });
+    for (const s of shotRows ?? []) {
+      if (!crop.has(s.request_id) && s.crop_path) {
+        crop.set(s.request_id, { path: s.crop_path, tier: s.match_tier ?? '' });
+      }
+    }
+    const cropPaths = Array.from(crop.values()).map((v) => v.path);
+    if (cropPaths.length) {
+      const { data: urls } = await db.storage
+        .from(SNAPSHOTS_BUCKET)
+        .createSignedUrls(cropPaths, 600);
+      for (const u of urls ?? []) {
+        if (u.signedUrl && u.path) cropUrl.set(u.path, u.signedUrl);
       }
     }
   }
@@ -384,11 +407,29 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                   const pos = positionInPage(loc);
                   const att = firstAtt.get(r.id);
                   const thumbUrl = att ? thumb.get(att.path) : undefined;
+                  const c = crop.get(r.id);
+                  const cUrl = c ? cropUrl.get(c.path) : undefined;
                   return (
                     <tr key={r.id} className="border-t border-slate-100 align-top">
                       <td className="px-3 py-3 tabular-nums text-slate-400">{r.seq}</td>
                       <td className="px-3 py-3">
                         <div className="flex gap-3">
+                          {cUrl && (
+                            <a
+                              href={cUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="shrink-0"
+                              title={`指摘箇所の切り出し（照合 ${c?.tier}）`}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={cUrl}
+                                alt="指摘箇所"
+                                className="h-14 w-24 rounded border border-blue-200 bg-slate-50 object-cover"
+                              />
+                            </a>
+                          )}
                           {thumbUrl && (
                             <a href={thumbUrl} target="_blank" rel="noreferrer" className="shrink-0">
                               {/* eslint-disable-next-line @next/next/no-img-element */}

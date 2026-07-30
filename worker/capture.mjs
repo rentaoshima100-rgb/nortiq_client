@@ -147,6 +147,23 @@ export async function capturePage(browser, url, viewportW, opts = {}) {
     // Playwright が関数ソースごとページ側に渡せる
     const layoutMap = await page.evaluate(collectLayoutMap, [masks, limit]);
 
+    // 依頼のロケータをこの場で当て直す（6.7）。
+    // 撮影と同じ DOM で測らないと、切り出し座標がズレる。
+    let matches = [];
+    if (opts.match?.length && opts.locatorBundle) {
+      await page.addScriptTag({ content: opts.locatorBundle });
+      matches = await page.evaluate((items) => {
+        return items.map((it) => {
+          const hit = window.__nqReplay.findByLocator(it.locator);
+          return {
+            id: it.id,
+            tier: hit ? hit.tier : 'stale',
+            bbox: hit ? hit.bbox : null,
+          };
+        });
+      }, opts.match);
+    }
+
     const locators = masks.map((s) => page.locator(s));
     const png = await page.screenshot({
       fullPage: true,
@@ -155,7 +172,7 @@ export async function capturePage(browser, url, viewportW, opts = {}) {
       animations: 'disabled',
     });
 
-    return { png, layoutMap, docHeight };
+    return { png, layoutMap, docHeight, matches };
   } finally {
     await ctx.close();
   }

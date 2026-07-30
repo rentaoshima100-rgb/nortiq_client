@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ATTACHMENTS_BUCKET } from '@/lib/env';
+import { ATTACHMENTS_BUCKET, SNAPSHOTS_BUCKET } from '@/lib/env';
 import { describeTarget, positionInPage, siteViewUrl } from '@/lib/describe';
 import { adminDb } from '@/lib/supabase/admin';
 import type { AttachmentRow, Locator, MatchedRule, RequestRow } from '@/lib/types';
@@ -72,6 +72,29 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
     db.from('projects').select('id, name, site_url').eq('id', req.project_id).maybeSingle(),
   ]);
 
+  // 切り出し（7.1）。最新のスナップショットのものを1枚出す。
+  const { data: shotRows } = await db
+    .from('request_shots')
+    .select('crop_path, match_tier, viewport_w, snapshot_id, snapshots(phase, taken_at, deploy_url)')
+    .eq('request_id', id)
+    .order('id', { ascending: false })
+    .limit(1);
+  const shot = shotRows?.[0] as
+    | {
+        crop_path: string | null;
+        match_tier: string | null;
+        viewport_w: number | null;
+        snapshots: { phase: string; taken_at: string; deploy_url: string | null } | null;
+      }
+    | undefined;
+  let cropUrl: string | null = null;
+  if (shot?.crop_path) {
+    const { data: signed } = await db.storage
+      .from(SNAPSHOTS_BUCKET)
+      .createSignedUrl(shot.crop_path, 600);
+    cropUrl = signed?.signedUrl ?? null;
+  }
+
   const files: { att: AttachmentRow; url: string | null }[] = [];
   for (const a of (atts ?? []) as AttachmentRow[]) {
     const { data: signed } = await db.storage
@@ -129,6 +152,34 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
             </a>
           )}
         </div>
+        {cropUrl && (
+          <div className="mb-5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={cropUrl}
+              alt="指摘箇所の切り出し"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50"
+            />
+            <p className="mt-1.5 text-xs text-slate-400">
+              {shot?.snapshots?.phase} スナップショット（{shot?.viewport_w}px 幅）から切り出し ／
+              照合は{' '}
+              <span
+                className={
+                  shot?.match_tier === 'confirmed'
+                    ? 'font-semibold text-emerald-700'
+                    : shot?.match_tier === 'provisional'
+                      ? 'font-semibold text-amber-700'
+                      : 'font-semibold text-slate-600'
+                }
+              >
+                {shot?.match_tier}
+              </span>
+              {shot?.match_tier !== 'confirmed' &&
+                '（nq-id が無いため段2以降で当てています。注入を入れると confirmed に上がります）'}
+            </p>
+          </div>
+        )}
+
         <div className="flex gap-5">
           <PositionMap loc={loc} />
           <div className="min-w-0 flex-1 space-y-1.5">

@@ -16,6 +16,9 @@ export function optionalEnv(name: string): string | null {
 export const ATTACHMENTS_BUCKET =
   process.env.SUPABASE_ATTACHMENTS_BUCKET || 'nq-attachments';
 
+/** 撮影結果と切り出し（設計 7.1）。worker が書き、社内画面が読む。 */
+export const SNAPSHOTS_BUCKET = process.env.SUPABASE_SNAPSHOTS_BUCKET || 'nq-snapshots';
+
 /** 社内ダッシュボードに入れるメールアドレス（カンマ区切り） */
 export function staffEmails(): string[] {
   return (process.env.STAFF_EMAILS || '')
