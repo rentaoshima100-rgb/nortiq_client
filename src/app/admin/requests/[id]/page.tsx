@@ -72,28 +72,40 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
     db.from('projects').select('id, name, site_url').eq('id', req.project_id).maybeSingle(),
   ]);
 
-  // 切り出し（7.1）。最新のスナップショットのものを1枚出す。
-  const { data: shotRows } = await db
+  // 切り出し（7.1）。全スナップショット分を時系列で並べる = 画面F の前後ビュー。
+  type ShotRow = {
+    crop_path: string | null;
+    match_tier: string | null;
+    viewport_w: number | null;
+    snapshots: { phase: string; taken_at: string; deploy_url: string | null } | null;
+  };
+  const { data: rawShots } = await db
     .from('request_shots')
-    .select('crop_path, match_tier, viewport_w, snapshot_id, snapshots(phase, taken_at, deploy_url)')
-    .eq('request_id', id)
-    .order('id', { ascending: false })
-    .limit(1);
-  const shot = shotRows?.[0] as
-    | {
-        crop_path: string | null;
-        match_tier: string | null;
-        viewport_w: number | null;
-        snapshots: { phase: string; taken_at: string; deploy_url: string | null } | null;
-      }
-    | undefined;
-  let cropUrl: string | null = null;
-  if (shot?.crop_path) {
+    .select('crop_path, match_tier, viewport_w, snapshots(phase, taken_at, deploy_url)')
+    .eq('request_id', id);
+
+  const PHASE_ORDER: Record<string, number> = { initial: 0, before: 1, preview: 2, after: 3 };
+  const shots = ((rawShots ?? []) as unknown as ShotRow[])
+    .filter((s) => s.crop_path)
+    .sort((a, b) => {
+      const t = (a.snapshots?.taken_at ?? '').localeCompare(b.snapshots?.taken_at ?? '');
+      return t !== 0
+        ? t
+        : (PHASE_ORDER[a.snapshots?.phase ?? ''] ?? 9) - (PHASE_ORDER[b.snapshots?.phase ?? ''] ?? 9);
+    });
+
+  const cropUrls = new Map<string, string>();
+  if (shots.length) {
     const { data: signed } = await db.storage
       .from(SNAPSHOTS_BUCKET)
-      .createSignedUrl(shot.crop_path, 600);
-    cropUrl = signed?.signedUrl ?? null;
+      .createSignedUrls(
+        shots.map((s) => s.crop_path as string),
+        600,
+      );
+    for (const u of signed ?? []) if (u.signedUrl && u.path) cropUrls.set(u.path, u.signedUrl);
   }
+  const shot = shots[shots.length - 1];
+  const cropUrl = shot?.crop_path ? (cropUrls.get(shot.crop_path) ?? null) : null;
 
   const files: { att: AttachmentRow; url: string | null }[] = [];
   for (const a of (atts ?? []) as AttachmentRow[]) {
@@ -152,17 +164,43 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
             </a>
           )}
         </div>
-        {cropUrl && (
+        {shots.length > 0 && (
           <div className="mb-5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={cropUrl}
-              alt="指摘箇所の切り出し"
-              className="w-full rounded-lg border border-slate-200 bg-slate-50"
-            />
+            {/* 2枚以上あれば前後比較として並べる（画面F）*/}
+            <div className={shots.length > 1 ? 'grid gap-3 sm:grid-cols-2' : ''}>
+              {(shots.length > 1 ? shots.slice(-2) : shots).map((s, i, arr) => {
+                const u = s.crop_path ? cropUrls.get(s.crop_path) : null;
+                if (!u) return null;
+                const isAfter = arr.length > 1 && i === arr.length - 1;
+                return (
+                  <figure key={s.crop_path}>
+                    <figcaption className="mb-1 flex items-center gap-2 text-xs">
+                      <span
+                        className={
+                          isAfter
+                            ? 'rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700'
+                            : 'rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600'
+                        }
+                      >
+                        {arr.length > 1 ? (isAfter ? '変更後' : '変更前') : '現在'} ／{' '}
+                        {s.snapshots?.phase}
+                      </span>
+                      <span className="text-slate-400">
+                        {s.snapshots?.taken_at ? fmt(s.snapshots.taken_at) : ''} ／ {s.viewport_w}px
+                      </span>
+                    </figcaption>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={u}
+                      alt="指摘箇所の切り出し"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50"
+                    />
+                  </figure>
+                );
+              })}
+            </div>
             <p className="mt-1.5 text-xs text-slate-400">
-              {shot?.snapshots?.phase} スナップショット（{shot?.viewport_w}px 幅）から切り出し ／
-              照合は{' '}
+              全体撮影からピン座標で切り出したもの（7.1）。照合は{' '}
               <span
                 className={
                   shot?.match_tier === 'confirmed'
@@ -176,6 +214,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               </span>
               {shot?.match_tier !== 'confirmed' &&
                 '（nq-id が無いため段2以降で当てています。注入を入れると confirmed に上がります）'}
+              {shots.length > 2 && ` ／ 撮影 ${shots.length} 回のうち直近2回を表示`}
             </p>
           </div>
         )}

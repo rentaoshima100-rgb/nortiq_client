@@ -90,6 +90,24 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     .eq('project_id', id)
     .is('round_id', null);
 
+  const [{ data: snapshots }, { count: unintended }] = await Promise.all([
+    db
+      .from('snapshots')
+      .select('id, phase, status, error, commit_sha, deploy_url, taken_at')
+      .eq('project_id', id)
+      .order('taken_at', { ascending: false })
+      .limit(10),
+    db
+      .from('diffs')
+      .select('id', { count: 'exact', head: true })
+      .eq('intended', false)
+      .in(
+        'round_id',
+        (rounds ?? []).map((r) => r.id),
+      ),
+  ]);
+  const unintendedCount = unintended ?? 0;
+
   const [{ data: requests }, { data: sessions }] = await Promise.all([
     db
       .from('requests')
@@ -236,6 +254,60 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           </table>
         )}
       </section>
+
+      {snapshots && snapshots.length > 0 && (
+        <section className="rounded-xl border border-slate-200 bg-white p-6">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="text-sm font-bold">スナップショット</h2>
+            <span className="text-xs text-slate-400">worker/snapshot.mjs が撮影します</span>
+          </div>
+
+          {unintendedCount > 0 && (
+            <div className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <p className="font-bold">意図しない変更が {unintendedCount} 件あります</p>
+              <p className="mt-1 text-xs">
+                ピン対象の自身・子孫・祖先のいずれでもない場所が変わっています。
+                中身を確認してください。<b>クライアントには表示していません</b>（7.4）。
+              </p>
+            </div>
+          )}
+
+          <table className="w-full text-xs">
+            <thead className="text-left text-slate-400">
+              <tr>
+                <th className="py-1.5 font-medium">phase</th>
+                <th className="py-1.5 font-medium">撮影</th>
+                <th className="py-1.5 font-medium">状態</th>
+                <th className="py-1.5 font-medium">SHA</th>
+                <th className="py-1.5 font-medium">対象</th>
+              </tr>
+            </thead>
+            <tbody>
+              {snapshots.map((s) => (
+                <tr key={s.id} className="border-t border-slate-100">
+                  <td className="py-2 font-medium">{s.phase}</td>
+                  <td className="py-2 text-slate-500">{fmt(s.taken_at)}</td>
+                  <td className="py-2">
+                    {s.status === 'ready' ? (
+                      <span className="text-emerald-600">ready</span>
+                    ) : s.status === 'failed' ? (
+                      <span className="text-red-600" title={s.error ?? ''}>
+                        failed
+                      </span>
+                    ) : (
+                      <span className="text-slate-500">{s.status}</span>
+                    )}
+                  </td>
+                  <td className="py-2 font-mono text-slate-400">
+                    {s.commit_sha ? s.commit_sha.slice(0, 7) : '—'}
+                  </td>
+                  <td className="py-2 text-slate-400">{s.deploy_url}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <div className="mb-4 flex items-baseline justify-between">
