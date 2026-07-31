@@ -38,7 +38,9 @@ jobs:
       # 撮影はしないので Playwright のブラウザは入れない
       - name: 依存をインストール
         working-directory: worker
-        run: npm ci --omit=optional --ignore-scripts && npm rebuild sharp
+        # sharp / odiff のネイティブバイナリは optional dependency として配られる。
+        # --omit=optional を付けると入らず、実行時に読み込みで落ちる。
+        run: npm ci --ignore-scripts
 
       - name: ディスパッチを判定して実行
         working-directory: worker
