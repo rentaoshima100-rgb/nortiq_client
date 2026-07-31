@@ -630,6 +630,22 @@ function start(
     }
   }, 1000);
 
+  /**
+   * URL を変えずに中身だけ差し替えるサイトがある（ブラウザ内で JSX を
+   * 描画するタイプなど）。パスの変化だけを見ていると、ページを移動しても
+   * 前のページのピンが残り続ける。DOM の入れ替わりを見て描き直す。
+   */
+  let domTimer: ReturnType<typeof setTimeout> | null = null;
+  const observer = new MutationObserver((records) => {
+    // 自分のシャドウ配下の変化は無視する（無限ループを避ける）
+    if (records.every((r) => r.target === host || host.contains(r.target as Node))) return;
+    if (domTimer) clearTimeout(domTimer);
+    domTimer = setTimeout(() => {
+      if (mode === 'idle') drawPins();
+    }, 250);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
   loadPins();
   loadSummary();
   // 画像の遅延読み込みでレイアウトが動くため、少し置いてもう一度合わせる

@@ -216,6 +216,13 @@ export function findByLocator(loc: Locator): MatchResult | null {
     }
   }
 
+  // ロケータに nqId があったのに、その id が文書内に1つも無い場合。
+  // 要素そのものが消えている（別のページ／別のビューを見ている）可能性が高い。
+  // ここで cssPath や bbox に落ちると、**別のページの無関係な要素を掴む**。
+  // SPA で URL が変わらないサイトでは、これが「ページを移動してもピンが出る」
+  // という形で表に出る。強い手がかりから弱い手がかりへは降りない。
+  const nqIdMissing = !!loc.nqId && nqIdGroup(loc.nqId).length === 0;
+
   // 段2: textHash + tag（nqId なし）
   if (loc.textHash) {
     const cands = Array.prototype.slice.call(
@@ -224,6 +231,9 @@ export function findByLocator(loc: Locator): MatchResult | null {
     const hits = cands.filter((e) => textHashOf(ownText(e)) === loc.textHash);
     if (hits.length === 1) return { el: hits[0], tier: 'provisional' };
   }
+
+  // nqId があったのに見つからないなら、段3（cssPath / bbox）には降りない
+  if (nqIdMissing) return null;
 
   // 段3: cssPath
   try {
