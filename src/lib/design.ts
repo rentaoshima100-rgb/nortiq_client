@@ -63,6 +63,7 @@ const SYSTEM = `あなたは制作会社のデザイナーです。納品済み�
 出力する HTML の決まり:
 - 自己完結した断片にしてください。<style> をその中に含め、外部のCSS・フォント・画像・スクリプトは一切参照しないこと（読み込めない環境で見ます）
 - <!DOCTYPE> や <html>・<head>・<body> は書かないこと。中身だけを書いてください
+- **簡潔に書いてください。CSS 込みで 150行・4000文字を超えないこと。** 同じ形の要素が繰り返すところは、繰り返しごとに書き直さずクラスでまとめること
 - クラス名は nqd- で始めてください。プレビュー環境の他の要素と衝突させないためです
 - 画像が必要な箇所は、実際の画像を参照せず、背景色とキャプションを置いたプレースホルダにしてください
 - 日本語の文言は元のものを保ってください。依頼が文言の変更を求めている場合だけ変えます
@@ -247,10 +248,11 @@ export async function research(
 
   const stream = client.messages.stream({
     model: MODEL,
-    max_tokens: 16000,
+    max_tokens: 8000,
     system: RESEARCH_SYSTEM,
-    output_config: { effort: 'medium' },
-    tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }],
+    // 60秒で切られると何も残らない。探して要約する仕事なので low で足りる
+    output_config: { effort: 'low' },
+    tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 3 }],
     messages: [
       {
         role: 'user',
@@ -323,10 +325,11 @@ async function generateOne(
     // 長い出力になるので必ずストリーム。非ストリームだと HTTP タイムアウトに当たる
     const stream = client.messages.stream({
       model: MODEL,
-      max_tokens: 16000,
+      // 出力の長さがそのまま所要時間になる。60秒に収めるための上限
+      max_tokens: 6000,
       system: SYSTEM,
       output_config: {
-        effort: 'medium',
+        effort: 'low',
         format: { type: 'json_schema', schema: SCHEMA as unknown as Record<string, unknown> },
       },
       messages: [{ role: 'user', content: [...imageBlocks(crop), { type: 'text', text: body }] }],
