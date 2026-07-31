@@ -43,16 +43,24 @@ export function appJwt(appId, privateKeyPem) {
  * どれも `DECODER routines::unsupported` という同じ顔で落ちるので、
  * ここで吸収する。
  */
-export function normalizePem(input) {
-  let s = String(input).replace(/\\n/g, '\n').replace(/\r/g, '').trim();
+export function normalizePem(input, label = 'RSA PRIVATE KEY') {
+  const s = String(input).replace(/\\n/g, '\n').replace(/\r/g, '').trim();
 
   const m = /-----BEGIN ([A-Z ]+)-----([\s\S]*?)-----END \1-----/.exec(s);
-  if (!m) return s.endsWith('\n') ? s : s + '\n';
+  const wrap = (lab, body) => {
+    const lines = body.replace(/\s+/g, '').match(/.{1,64}/g) ?? [];
+    return `-----BEGIN ${lab}-----\n${lines.join('\n')}\n-----END ${lab}-----\n`;
+  };
 
-  const label = m[1];
-  const body = m[2].replace(/\s+/g, '');
-  const wrapped = body.match(/.{1,64}/g) ?? [];
-  return `-----BEGIN ${label}-----\n${wrapped.join('\n')}\n-----END ${label}-----\n`;
+  if (m) return wrap(m[1], m[2]);
+
+  // ヘッダ行とフッタ行が落ちて base64 の本体だけになっている場合。
+  // メモ帳などから中身だけを選択してしまうと起きる。
+  if (/^[A-Za-z0-9+/=\s]+$/.test(s) && s.replace(/\s+/g, '').length > 100) {
+    return wrap(label, s);
+  }
+
+  return s.endsWith('\n') ? s : s + '\n';
 }
 
 export function privateKeyFromEnv() {
@@ -62,7 +70,22 @@ export function privateKeyFromEnv() {
     : process.env.NQ_GH_APP_PRIVATE_KEY || process.env.GITHUB_APP_PRIVATE_KEY;
   if (!raw) throw new Error('NQ_GH_APP_PRIVATE_KEY（または GITHUB_APP_PRIVATE_KEY_B64）が必要です');
 
-  const pem = normalizePem(raw);
+  // PKCS#1（RSA PRIVATE KEY）と PKCS#8（PRIVATE KEY）の両方を試す。
+  // 本体だけ貼られた場合はどちらか分からないので、実際に署名して確かめる。
+  let pem = null;
+  for (const label of ['RSA PRIVATE KEY', 'PRIVATE KEY']) {
+    const candidate = normalizePem(raw, label);
+    try {
+      createSign('RSA-SHA256').update('probe').sign(candidate);
+      pem = candidate;
+      break;
+    } catch {
+      /* 次のラベルで試す */
+    }
+  }
+  if (pem) return pem;
+
+  pem = normalizePem(raw);
   if (!/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(pem)) {
     // 鍵そのものは絶対に出さない。形だけを報告する。
     // ここを黙って通すと `DECODER routines::unsupported` という
