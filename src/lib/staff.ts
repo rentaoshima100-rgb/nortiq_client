@@ -24,6 +24,19 @@ export async function requireStaff(): Promise<StaffUser> {
   return { id: user.id, email: user.email as string };
 }
 
+/**
+ * API ルート用。requireStaff は redirect を投げるので、
+ * fetch の相手には 307 が返って扱いにくい。ここは null を返す。
+ */
+export async function currentStaff(): Promise<StaffUser | null> {
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user || !isStaffEmail(user.email)) return null;
+  return { id: user.id, email: user.email as string };
+}
+
 export function staffActor(user: StaffUser): Actor {
   return { type: 'staff', id: user.email };
 }

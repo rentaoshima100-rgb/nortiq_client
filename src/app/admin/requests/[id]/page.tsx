@@ -4,6 +4,7 @@ import { ATTACHMENTS_BUCKET, SNAPSHOTS_BUCKET } from '@/lib/env';
 import { describeTarget, positionInPage, siteViewUrl } from '@/lib/describe';
 import { adminDb } from '@/lib/supabase/admin';
 import type { AttachmentRow, Locator, MatchedRule, RequestRow } from '@/lib/types';
+import { GenerateButton, ProposalCard, type ProposalView } from './design-ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -114,6 +115,18 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
       .createSignedUrl(a.storage_path, 600);
     files.push({ att: a, url: signed?.signedUrl ?? null });
   }
+
+  // 参考デザイン案。最新の世代だけを出す（過去の世代は残るが画面には出さない）
+  const { data: allProposals } = await db
+    .from('design_proposals')
+    .select('id, batch, variant, direction, title, rationale')
+    .eq('request_id', req.id)
+    .order('batch', { ascending: false })
+    .order('variant', { ascending: true });
+  const latestBatch = allProposals?.[0]?.batch ?? null;
+  const proposals: ProposalView[] = ((allProposals ?? []) as (ProposalView & { batch: number })[])
+    .filter((p) => p.batch === latestBatch)
+    .sort((a, b) => a.variant - b.variant);
 
   return (
     <div className="space-y-6">
@@ -361,6 +374,25 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         <pre className="overflow-x-auto rounded bg-slate-900 px-3 py-2 text-xs text-slate-100">
           {req.outer_html ?? '—'}
         </pre>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-6">
+        <h2 className="text-sm font-bold">参考デザイン</h2>
+        <p className="mt-1 mb-4 text-xs leading-relaxed text-slate-500">
+          社内の検討用です。サイトには何も適用されません。
+          <br />
+          どこまで踏み込むかで3案に分けています。持ち帰って提示する前に、必ず中身を確認してください。
+        </p>
+
+        <GenerateButton requestId={req.id} again={proposals.length > 0} />
+
+        {proposals.length > 0 && (
+          <div className="mt-5 space-y-4">
+            {proposals.map((p) => (
+              <ProposalCard key={p.id} p={p} />
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
