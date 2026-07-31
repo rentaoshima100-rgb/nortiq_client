@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { appUrl, ATTACHMENTS_BUCKET, SNAPSHOTS_BUCKET } from '@/lib/env';
 import { describeTarget, positionInPage, siteViewUrl } from '@/lib/describe';
-import { revokeInvite, roundAdvance, roundOpen, roundToggleFree } from '@/app/admin/actions';
+import { revokeInvite, roundAdvance, roundOpen, roundToggleFree, refreshTokens } from '@/app/admin/actions';
 import {
   daysUntil,
   jaFreezeReason,
@@ -12,6 +12,7 @@ import {
   type RoundRow,
 } from '@/lib/rounds';
 import { adminDb } from '@/lib/supabase/admin';
+import type { SiteTokens } from '@/lib/site-tokens-store';
 import type { Locator } from '@/lib/types';
 import {
   CATEGORY_OPTIONS,
@@ -179,6 +180,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   const snippet = `<script src="${appUrl()}/w.js" data-project="${project.snippet_key}" defer></script>`;
 
+  const tokens = project.design_tokens as SiteTokens | null;
+
   return (
     <div className="space-y-8">
       <div>
@@ -203,6 +206,80 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="mb-4 text-sm font-bold">案件設定</h2>
         <ProjectSettings project={project} />
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-bold">設計トークン</h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              本番サイトの CSS から抜いた配色・書体・余白です。参考デザインを作るとき、
+              ここに載っている色と書体からしか選ばせません。
+              {project.design_tokens_at ? (
+                <>
+                  <br />
+                  取得: {fmt(project.design_tokens_at)}。
+                  <strong>サイトを作り直したら取り直してください。</strong>
+                </>
+              ) : (
+                <>
+                  <br />
+                  まだ取得していません。
+                </>
+              )}
+            </p>
+          </div>
+          <form action={refreshTokens}>
+            <input type="hidden" name="project_id" value={project.id} />
+            <button className="whitespace-nowrap rounded-lg border border-slate-300 px-3 py-1.5 text-xs">
+              取り直す
+            </button>
+          </form>
+        </div>
+
+        {tokens ? (
+          <div className="mt-4 space-y-3 text-xs">
+            <div className="flex flex-wrap gap-1.5">
+              {tokens.colors.map((c) => (
+                <span key={c} className="inline-flex items-center gap-1.5 rounded border border-slate-200 px-1.5 py-1">
+                  <span
+                    className="inline-block h-4 w-4 rounded-sm border border-slate-300"
+                    style={{ background: c }}
+                  />
+                  <code className="text-[11px] text-slate-600">{c}</code>
+                </span>
+              ))}
+            </div>
+            {tokens.fonts.length > 0 && (
+              <div>
+                <span className="text-slate-500">書体: </span>
+                {tokens.fonts.map((f) => (
+                  <code key={f} className="mr-2 text-[11px] text-slate-700">
+                    {f}
+                  </code>
+                ))}
+              </div>
+            )}
+            {tokens.vars.length > 0 && (
+              <div>
+                <span className="text-slate-500">変数: </span>
+                {tokens.vars.map((v) => (
+                  <code key={v.name} className="mr-2 text-[11px] text-slate-700">
+                    {v.name}
+                  </code>
+                ))}
+              </div>
+            )}
+            <div className="text-slate-500">
+              文字サイズ {tokens.fontSizes.join(' ')} ／ 余白 {tokens.spacings.join(' ')}
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 text-xs text-amber-700">
+            取得できていません。サイト URL が正しいか、本番が公開されているか確認してください。
+            取得できないままでも案は作れますが、色と書体は依頼された要素の値からしか推定できません。
+          </p>
+        )}
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">

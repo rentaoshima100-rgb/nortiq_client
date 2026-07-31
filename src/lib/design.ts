@@ -10,6 +10,8 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb } from '@/lib/supabase/admin';
+import { tokensText } from '@/lib/site-tokens.mjs';
+import { projectTokens, type SiteTokens } from '@/lib/site-tokens-store';
 
 export const DESIGNS_BUCKET = 'nq-designs';
 const SNAPSHOTS_BUCKET = 'nq-snapshots';
@@ -160,7 +162,7 @@ async function loadCrop(
   }
 }
 /** 依頼そのものの材料。調査でも生成でも同じものを使う */
-function siteContext(ctx: RequestContext): string {
+function siteContext(ctx: RequestContext, tokens: SiteTokens | null): string {
   const lines: string[] = [];
   lines.push(`# 依頼 #${ctx.seq}`);
   lines.push(ctx.body.trim());
@@ -185,10 +187,23 @@ function siteContext(ctx: RequestContext): string {
 
   if (ctx.cssRules?.length) {
     lines.push('');
-    lines.push('# 現在あたっている CSS（このサイトの既存のトークン）');
+    lines.push('# 対象要素に現在あたっている CSS');
     for (const rule of ctx.cssRules.slice(0, 14)) {
       lines.push(`${rule.selector} { ${String(rule.cssText).slice(0, 240)} }`);
     }
+  }
+
+  const tok = tokensText(tokens);
+  if (tok) {
+    lines.push('');
+    lines.push(tok);
+  } else {
+    lines.push('');
+    lines.push(
+      '# 設計トークン\n本番サイトの CSS を取得できませんでした。' +
+        '上の「対象要素に現在あたっている CSS」と計算値だけを手がかりに、' +
+        'そこから読み取れる色・書体・余白の範囲を出ないでください。',
+    );
   }
 
   return lines.join('\n');
@@ -226,6 +241,7 @@ export interface Research {
 export async function research(
   ctx: RequestContext,
   crop: { media: string; data: string } | null,
+  tokens: SiteTokens | null,
 ): Promise<Research> {
   const client = new Anthropic();
 
@@ -236,7 +252,10 @@ export async function research(
     output_config: { effort: 'medium' },
     tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 8 }],
     messages: [
-      { role: 'user', content: [...imageBlocks(crop), { type: 'text', text: siteContext(ctx) }] },
+      {
+        role: 'user',
+        content: [...imageBlocks(crop), { type: 'text', text: siteContext(ctx, tokens) }],
+      },
     ],
   });
   const msg = await stream.finalMessage();
@@ -290,12 +309,13 @@ async function generateOne(
   v: { variant: number; instruction: string },
   brief: string,
   crop: { media: string; data: string } | null,
+  tokens: SiteTokens | null,
   batch: number,
   staffId: string | null,
 ): Promise<GeneratedVariant | FailedVariant> {
   const client = new Anthropic();
 
-  const body = `${siteContext(ctx)}\n\n# 調査結果\n${brief}\n\n# あなたが作る案\n${v.instruction}`;
+  const body = `${siteContext(ctx, tokens)}\n\n# 調査結果\n${brief}\n\n# あなたが作る案\n${v.instruction}`;
 
   let parsed: { direction: string; title: string; rationale: string; html: string };
   let usage: Anthropic.Usage;
@@ -406,10 +426,12 @@ export async function generateProposals(requestId: string, staffId: string | nul
   const batch = (last?.[0]?.batch ?? 0) + 1;
 
   const crop = await loadCrop(ctx.cropPath);
+  // 案件に保存してあるものを使う。無ければ一度だけ取りに行く
+  const tokens = await projectTokens(ctx.projectId, ctx.siteUrl);
 
   let found: Research;
   try {
-    found = await research(ctx, crop);
+    found = await research(ctx, crop, tokens);
   } catch (e) {
     return {
       ok: false as const,
@@ -424,6 +446,7 @@ export async function generateProposals(requestId: string, staffId: string | nul
       client_spec: found.clientSpec,
       brief: found.brief,
       sources: found.sources,
+      site_tokens: tokens,
       model: MODEL,
       created_by: staffId,
     } as never,
@@ -431,8 +454,8 @@ export async function generateProposals(requestId: string, staffId: string | nul
   );
 
   const results = await Promise.all(
-    VARIANT_PROMPTS.map((v) => generateOne(ctx, v, found.brief, crop, batch, staffId)),
+    VARIANT_PROMPTS.map((v) => generateOne(ctx, v, found.brief, crop, tokens, batch, staffId)),
   );
 
-  return { ok: true as const, batch, results, usedCrop: !!crop, research: found };
+  return { ok: true as const, batch, results, usedCrop: !!crop, tokens, research: found };
 }

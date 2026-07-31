@@ -6,6 +6,7 @@ import { auditedUpdate, logEvent } from '@/lib/events';
 import { newToken, sha256hex } from '@/lib/hash';
 import { notifyOnce, publishedMessage } from '@/lib/line';
 import { advanceRound, openRound } from '@/lib/rounds';
+import { refreshProjectTokens } from '@/lib/site-tokens-store';
 import { adminDb } from '@/lib/supabase/admin';
 import { requireStaff, staffActor } from '@/lib/staff';
 import type { ProjectRow } from '@/lib/types';
@@ -71,6 +72,11 @@ export async function createProject(
     action: 'project.created',
     after: { name, client_name: clientName, site_url: origin, snippet_key: snippetKey, stack },
   });
+
+  // 設計トークンを一度だけ抜いて持たせる。
+  // 参考デザインを作るときの色と書体の選択肢をここで閉じる。
+  // 失敗しても登録は止めない（案件設定から取り直せる）
+  await refreshProjectTokens(data.id, origin);
 
   redirect(`/admin/projects/${data.id}`);
 }
@@ -313,4 +319,36 @@ export async function updateRequestField(formData: FormData): Promise<void> {
 
   revalidatePath(`/admin/projects/${reqRow.project_id}`);
   revalidatePath(`/admin/requests/${requestId}`);
+}
+
+
+/**
+ * 設計トークンを取り直す（サイトを作り直したとき）。
+ * 抽出は本番サイトの CSS を読むだけで、サイトには何も書き込まない。
+ */
+export async function refreshTokens(formData: FormData): Promise<void> {
+  const user = await requireStaff();
+  const projectId = String(formData.get('project_id') || '');
+  if (!projectId) return;
+
+  const { data: p } = await adminDb()
+    .from('projects')
+    .select('site_url')
+    .eq('id', projectId)
+    .maybeSingle();
+
+  const tokens = await refreshProjectTokens(projectId, p?.site_url ?? null);
+
+  await logEvent({
+    projectId,
+    actor: staffActor(user),
+    entity: 'project',
+    entityId: projectId,
+    action: 'project.design_tokens_refreshed',
+    after: tokens
+      ? { colors: tokens.colors.length, fonts: tokens.fonts.length, vars: tokens.vars.length }
+      : { error: '取得できませんでした' },
+  });
+
+  revalidatePath(`/admin/projects/${projectId}`);
 }
