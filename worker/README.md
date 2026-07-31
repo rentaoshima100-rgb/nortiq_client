@@ -89,6 +89,42 @@ node replay.mjs --project loop-2026 --url https://別ビルド  # 別のデプ�
 ビューポート幅が違うとレスポンシブでレイアウトが変わるため、drift は当然大きくなる。
 `--viewport` を指摘時の幅に合わせて比較すること。
 
+## GitHub App / PR 基盤（9.6 / 9.7）
+
+`github.mjs` / `gates.mjs` / `patch.mjs`。Octokit は使わず REST を直接叩く
+（JWT の署名は node の crypto でできる）。
+
+必要な環境変数:
+
+```
+GITHUB_APP_ID=
+GITHUB_APP_PRIVATE_KEY_B64=     # .pem を base64 にしたもの（改行対策）
+GITHUB_APP_INSTALLATION_ID=
+```
+
+App の権限は **contents:write / pull_requests:write / deployments:read / metadata:read** だけ。
+Actions も Workflows も要らない。
+
+### 直列適用でやっていること
+
+パッチは「生成時点のファイル」を基準に作られるので、同一ファイルに複数当てると
+2件目以降の `old_str` がズレる。バッチをまたぐと差はさらに開く。そのため
+**適用の直前にブランチ HEAD の現在の内容を取り直し、`old_str` がちょうど1回
+出現することを再検証する**。ここを省くと静かに壊れる。
+
+1件の失敗で全体を止めない。落ちたものは `rejected` として理由付きで返す。
+
+### ゲート（実測で確認済み）
+
+| 入力 | 結果 |
+|---|---|
+| 同一ファイルへの2件の連続パッチ | 両方 applied（HEAD を取り直している） |
+| `old_str` が2箇所に一致 | rejected |
+| `old_str` が見つからない | rejected（先のパッチでズレた場合を含む） |
+| `style=` の新規付与 | rejected（9.4。ビルドは通るので**ゲートでしか止まらない**） |
+| `package.json` / `*.config.*` | rejected |
+| バイナリの上書き（素材差し替え） | applied |
+
 ## まだ無いもの
 
 - Storage / DB への保存（撮影結果はローカルに置くだけ）

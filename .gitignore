@@ -20,3 +20,6 @@ shots/
 .DS_Store
 Thumbs.db
 .vercel
+
+# GitHub App の秘密鍵など
+.secrets/
