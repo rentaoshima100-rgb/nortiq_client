@@ -57,10 +57,24 @@ export function normalizePem(input) {
 
 export function privateKeyFromEnv() {
   const b64 = process.env.NQ_GH_APP_PRIVATE_KEY_B64 || process.env.GITHUB_APP_PRIVATE_KEY_B64;
-  if (b64) return normalizePem(Buffer.from(b64, 'base64').toString('utf8'));
-  const raw = process.env.NQ_GH_APP_PRIVATE_KEY || process.env.GITHUB_APP_PRIVATE_KEY;
-  if (raw) return normalizePem(raw);
-  throw new Error('NQ_GH_APP_PRIVATE_KEY（または GITHUB_APP_PRIVATE_KEY_B64）が必要です');
+  const raw = b64
+    ? Buffer.from(b64, 'base64').toString('utf8')
+    : process.env.NQ_GH_APP_PRIVATE_KEY || process.env.GITHUB_APP_PRIVATE_KEY;
+  if (!raw) throw new Error('NQ_GH_APP_PRIVATE_KEY（または GITHUB_APP_PRIVATE_KEY_B64）が必要です');
+
+  const pem = normalizePem(raw);
+  if (!/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(pem)) {
+    // 鍵そのものは絶対に出さない。形だけを報告する。
+    // ここを黙って通すと `DECODER routines::unsupported` という
+    // 原因の分からないエラーになる。
+    const head = raw.slice(0, 28).replace(/\s+/g, ' ');
+    throw new Error(
+      `秘密鍵の形式が違います（長さ ${raw.length} / 先頭 "${head}"）。\n` +
+        '  .pem ファイルの中身を -----BEGIN から -----END まで貼ってください。\n' +
+        '  フィンガープリント（SHA256:... の行）は鍵ではありません。',
+    );
+  }
+  return pem;
 }
 
 export function appIdFromEnv() {
