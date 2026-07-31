@@ -1,4 +1,4 @@
-import type { Api, RoundsResponse } from './api';
+import type { Api, RoundDiffResponse, RoundsResponse } from './api';
 import { el, fmtDate } from './util';
 
 /**
@@ -34,6 +34,7 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
   o.layer.appendChild(panel);
 
   let data: RoundsResponse | null = null;
+  let diff: RoundDiffResponse | null = null;
   let filter: Filter = 'all';
   let rejecting = false;
   const picked = new Set<string>();
@@ -49,6 +50,20 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
       (r) => {
         data = r;
         render();
+        // 公開済みなら、確認をお願いする前に変更前後を出す（画面F）。
+        // 「直ったかどうか」を判断する材料が無いまま押させない。
+        const st = r.round?.status;
+        if (r.round && (st === 'published' || st === 'confirmed' || st === 'closed_auto')) {
+          o.api.getRoundDiff(r.round.id).then(
+            (d) => {
+              diff = d;
+              render();
+            },
+            () => {
+              /* 撮影がまだなら黙って出さない */
+            },
+          );
+        }
       },
       () => {
         panel.innerHTML = '';
@@ -87,6 +102,8 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
 
     const notices = roundNotices(data);
     for (const n of notices) bd.appendChild(n);
+
+    if (!rejecting) for (const n of beforeAfter()) bd.appendChild(n);
 
     if (!rejecting) bd.appendChild(filters());
 
@@ -265,6 +282,62 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
       out.push(n);
     }
 
+    return out;
+  }
+
+  /**
+   * 変更前後（画面F）
+   * ラウンド節目の全体撮影から、ピン座標で切り出したもの（7.1）。
+   * 追加の撮影はしていない。
+   */
+  function beforeAfter(): HTMLElement[] {
+    if (!diff || !diff.items.length) return [];
+    const out: HTMLElement[] = [];
+
+    const head = el('div', 'notice info');
+    head.appendChild(el('h3', undefined, '修正した箇所'));
+    head.appendChild(
+      el(
+        'div',
+        undefined,
+        diff.hasBefore && diff.hasAfter
+          ? '修正前と修正後を並べています。ご確認ください。'
+          : '現在の状態です。',
+      ),
+    );
+    out.push(head);
+
+    for (const item of diff.items) {
+      const box = el('div', 'ba');
+      const hd = el('div', 'hd2');
+      hd.appendChild(el('div', 'no', String(item.seq)));
+      hd.appendChild(el('div', 't', item.body));
+      box.appendChild(hd);
+
+      const pair = el('div', 'pair' + (item.before && item.after ? '' : ' one'));
+      if (item.before) {
+        const fig = el('figure', 'b');
+        fig.appendChild(el('figcaption', undefined, '修正前'));
+        const img = el('img');
+        img.src = item.before;
+        img.alt = '修正前';
+        img.loading = 'lazy';
+        fig.appendChild(img);
+        pair.appendChild(fig);
+      }
+      if (item.after) {
+        const fig = el('figure', 'a');
+        fig.appendChild(el('figcaption', undefined, item.before ? '修正後' : '現在'));
+        const img = el('img');
+        img.src = item.after;
+        img.alt = '修正後';
+        img.loading = 'lazy';
+        fig.appendChild(img);
+        pair.appendChild(fig);
+      }
+      box.appendChild(pair);
+      out.push(box);
+    }
     return out;
   }
 

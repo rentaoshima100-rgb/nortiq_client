@@ -242,6 +242,27 @@ textarea:focus { border-color: #2563eb; background: #fff; }
 .item .ck { margin-right: 2px; accent-color: #2563eb; width: 16px; height: 16px; }
 .empty { padding: 40px 20px; text-align: center; font-size: 13px; color: #94a3b8; }
 
+/* ── 変更前後（画面F）───────────────────────────── */
+.ba { padding: 14px 20px; border-top: 1px solid #f1f5f9; }
+.ba .hd2 { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ba .hd2 .no {
+  width: 22px; height: 22px; border-radius: 50%; background: #2563eb; color: #fff;
+  font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.ba .hd2 .t { font-size: 13px; }
+.ba .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ba figure { margin: 0; }
+.ba figcaption {
+  font-size: 11px; font-weight: 600; margin-bottom: 4px;
+  border-radius: 999px; padding: 2px 8px; display: inline-block;
+}
+.ba .b figcaption { background: #f1f5f9; color: #64748b; }
+.ba .a figcaption { background: #dcfce7; color: #15803d; }
+.ba img {
+  width: 100%; border-radius: 6px; border: 1px solid #e2e8f0; display: block; background: #f8fafc;
+}
+.ba .one { grid-template-columns: 1fr; }
+
 /* ── トースト ────────────────────────────────────── */
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%);

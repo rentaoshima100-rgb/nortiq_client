@@ -48,6 +48,19 @@ export interface RoundsResponse {
   }[];
 }
 
+export interface RoundDiffResponse {
+  round: { seq: number; status: string };
+  hasBefore: boolean;
+  hasAfter: boolean;
+  items: {
+    requestId: string;
+    seq: number;
+    body: string;
+    before: string | null;
+    after: string | null;
+  }[];
+}
+
 export interface CreateRequestPayload {
   projectKey: string;
   body: string;
@@ -121,6 +134,13 @@ export function createApi(base: string, token: string, projectKey: string) {
     getRounds(): Promise<RoundsResponse> {
       return call<RoundsResponse>(
         '/api/w/rounds?projectKey=' + encodeURIComponent(projectKey),
+        { method: 'GET' },
+      );
+    },
+
+    getRoundDiff(roundId: string): Promise<RoundDiffResponse> {
+      return call<RoundDiffResponse>(
+        '/api/w/rounds/' + roundId + '/diff?projectKey=' + encodeURIComponent(projectKey),
         { method: 'GET' },
       );
     },

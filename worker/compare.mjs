@@ -74,6 +74,12 @@ if (roundId) {
     seq: r.seq,
     pagePath: r.page_path,
     path: r.locator?.cssPath ?? '',
+    // cssPath の文字列一致だけに頼らない。ピンを打った時点の DOM と
+    // 撮影時の DOM で兄弟が1つ増減すると nth-of-type がずれ、
+    // 「意図した変更なのに intended = false」になる。
+    // nq-id があるならそちらが本命（6.6）。
+    nqId: r.locator?.nqId ?? null,
+    nqOrdinal: r.locator?.nqOrdinal ?? null,
   }));
 }
 
@@ -109,6 +115,16 @@ for (const bs of beforeShots) {
     let relation = 'none';
     let nearest = null;
     for (const pin of pagePins) {
+      // ① nq-id で照合する。重複する（ループ描画）場合は序数も見る（6.5）
+      if (pin.nqId && d.nqId && pin.nqId === d.nqId) {
+        const group = aMap.filter((e) => e.key === pin.nqId);
+        if (group.length === 1 || pin.nqOrdinal == null || d.ord === pin.nqOrdinal) {
+          relation = 'self';
+          nearest = pin.requestId;
+          break;
+        }
+      }
+      // ② cssPath で照合する
       if (d.elementKey === pin.path) {
         relation = 'self';
         nearest = pin.requestId;
