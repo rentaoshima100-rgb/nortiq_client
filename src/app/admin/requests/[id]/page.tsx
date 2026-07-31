@@ -4,7 +4,13 @@ import { ATTACHMENTS_BUCKET, SNAPSHOTS_BUCKET } from '@/lib/env';
 import { describeTarget, positionInPage, siteViewUrl } from '@/lib/describe';
 import { adminDb } from '@/lib/supabase/admin';
 import type { AttachmentRow, Locator, MatchedRule, RequestRow } from '@/lib/types';
-import { GenerateButton, ProposalCard, type ProposalView } from './design-ui';
+import {
+  GenerateButton,
+  ProposalCard,
+  ResearchPanel,
+  type BatchView,
+  type ProposalView,
+} from './design-ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,6 +133,23 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const proposals: ProposalView[] = ((allProposals ?? []) as (ProposalView & { batch: number })[])
     .filter((p) => p.batch === latestBatch)
     .sort((a, b) => a.variant - b.variant);
+
+  let batchView: BatchView | null = null;
+  if (latestBatch != null) {
+    const { data: bt } = await db
+      .from('design_batches')
+      .select('client_spec, brief, sources')
+      .eq('request_id', req.id)
+      .eq('batch', latestBatch)
+      .maybeSingle();
+    if (bt) {
+      batchView = {
+        clientSpec: bt.client_spec,
+        brief: bt.brief,
+        sources: (bt.sources as { title: string; url: string }[] | null) ?? [],
+      };
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -381,10 +404,14 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         <p className="mt-1 mb-4 text-xs leading-relaxed text-slate-500">
           社内の検討用です。サイトには何も適用されません。
           <br />
-          どこまで踏み込むかで3案に分けています。持ち帰って提示する前に、必ず中身を確認してください。
+          先に構成の似ている実例を調べ、その型に沿って3案作ります。施主の指定があればそちらが優先されます。
+          <br />
+          持ち帰って提示する前に、必ず中身を確認してください。
         </p>
 
         <GenerateButton requestId={req.id} again={proposals.length > 0} />
+
+        {batchView && <ResearchPanel b={batchView} />}
 
         {proposals.length > 0 && (
           <div className="mt-5 space-y-4">

@@ -11,11 +11,54 @@ export interface ProposalView {
   rationale: string;
 }
 
-const LABEL: Record<string, string> = {
-  minimal: '最小の変更',
-  refined: '整えた案',
-  rethink: '作り直した案',
-};
+export interface BatchView {
+  clientSpec: string | null;
+  brief: string;
+  sources: { title: string; url: string }[];
+}
+
+/** 調査結果。施主に示す根拠になるので、折りたたんでも消さない */
+export function ResearchPanel({ b }: { b: BatchView }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      {b.clientSpec ? (
+        <div className="mb-3 rounded border-l-4 border-slate-900 bg-white px-3 py-2">
+          <div className="text-xs font-bold text-slate-500">施主の指定（3案すべてが従っています）</div>
+          <p className="mt-1 whitespace-pre-wrap text-sm">{b.clientSpec}</p>
+        </div>
+      ) : (
+        <p className="mb-3 text-xs text-slate-500">
+          依頼文に具体的な指定はありませんでした。構成は調査で見つけた実例に寄せています。
+        </p>
+      )}
+
+      <button onClick={() => setOpen(!open)} className="text-sm text-slate-700 underline">
+        {open ? '調査結果を閉じる' : `調査結果を見る（参照 ${b.sources.length} 件）`}
+      </button>
+
+      {open && (
+        <>
+          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded bg-white px-3 py-2 text-xs leading-relaxed text-slate-700">
+            {b.brief}
+          </pre>
+          {b.sources.length > 0 && (
+            <ul className="mt-3 space-y-1">
+              {b.sources.map((s) => (
+                <li key={s.url} className="truncate text-xs">
+                  <a href={s.url} target="_blank" rel="noreferrer" className="text-slate-600 underline">
+                    {s.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 export function GenerateButton({ requestId, again }: { requestId: string; again: boolean }) {
   const router = useRouter();
@@ -72,7 +115,7 @@ export function ProposalCard({ p }: { p: ProposalView }) {
       <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div className="flex items-baseline gap-2">
           <span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-700">
-            {LABEL[p.direction] ?? p.direction}
+            案{p.variant}・{p.direction}
           </span>
           <h3 className="text-sm font-bold">{p.title}</h3>
         </div>
