@@ -1,7 +1,13 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { issueInvite, updateRequestField, type InviteState } from '@/app/admin/actions';
+import {
+  issueInvite,
+  saveProjectSettings,
+  updateRequestField,
+  type InviteState,
+  type SettingsState,
+} from '@/app/admin/actions';
 
 /* ── 埋め込みスニペット ─────────────────────────────────────── */
 
@@ -79,6 +85,116 @@ export function InviteIssuer({ projectId }: { projectId: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+/* ── 案件設定（画面D）──────────────────────────────────────── */
+
+const initialSettings: SettingsState = {};
+const FIELD =
+  'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:bg-white';
+
+export function ProjectSettings({
+  project,
+}: {
+  project: {
+    id: string;
+    repo_owner: string | null;
+    repo_name: string | null;
+    default_branch: string | null;
+    has_nq_id: boolean;
+    asset_swap_enabled: boolean;
+    ai_enabled: boolean;
+    free_rounds: number;
+    max_items_per_round: number;
+    freeze_idle_days: number;
+    auto_confirm_days: number;
+  };
+}) {
+  const [state, action, pending] = useActionState(saveProjectSettings, initialSettings);
+  const repo =
+    project.repo_owner && project.repo_name ? `${project.repo_owner}/${project.repo_name}` : '';
+
+  return (
+    <form action={action} className="space-y-4">
+      <input type="hidden" name="project_id" value={project.id} />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-600">
+            GitHub リポジトリ
+          </label>
+          <input name="repo" defaultValue={repo} placeholder="owner/name" className={FIELD} />
+          <p className="mt-1 text-xs text-slate-400">
+            GitHub App がこのリポジトリにインストールされている必要があります
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-600">既定ブランチ</label>
+          <input name="default_branch" defaultValue={project.default_branch ?? 'main'} className={FIELD} />
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-4">
+        {(
+          [
+            ['free_rounds', '無償ラウンド数', project.free_rounds],
+            ['max_items_per_round', '1ラウンドの上限件数', project.max_items_per_round],
+            ['freeze_idle_days', '無操作で締切（日）', project.freeze_idle_days],
+            ['auto_confirm_days', '自動確認（日）', project.auto_confirm_days],
+          ] as [string, string, number][]
+        ).map(([name, label, val]) => (
+          <div key={name}>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{label}</label>
+            <input name={name} type="number" min={1} defaultValue={val} className={FIELD} />
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-2 rounded-lg bg-slate-50 p-4">
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" name="has_nq_id" defaultChecked={project.has_nq_id} className="mt-1" />
+          <span>
+            <b>nq-id が注入されている</b>
+            <span className="block text-xs text-slate-500">
+              tools/nq-inject を prebuild に入れてある場合。ロケータが段1で当たるようになります（6.6）
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="asset_swap_enabled"
+            defaultChecked={project.asset_swap_enabled}
+            className="mt-1"
+          />
+          <span>
+            <b>素材差し替えを有効にする（Phase 3a）</b>
+            <span className="block text-xs text-slate-500">
+              決定的処理で LLM を使いません。ZDR の取得を待たずに使えます（9.10・13.3）
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" name="ai_enabled" defaultChecked={project.ai_enabled} className="mt-1" />
+          <span>
+            <b>文言パッチを有効にする（Phase 3b）</b>
+            <span className="block text-xs text-amber-700">
+              LLM を使います。<b>ZDR の適用を書面で確認するまで有効にしないこと</b>（13.3）
+            </span>
+          </span>
+        </label>
+      </div>
+
+      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
+      {state.saved && <p className="text-sm text-emerald-600">保存しました</p>}
+      <button
+        disabled={pending}
+        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+      >
+        {pending ? '保存中…' : '設定を保存'}
+      </button>
+    </form>
   );
 }
 

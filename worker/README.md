@@ -133,3 +133,43 @@ Actions も Workflows も要らない。
 - ピン座標からの切り出し（`request_shots`）
 - Vercel プレビュー保護のバイパス（`capturePage` の `bypassSecret` は口だけ用意済み・7.5）
 - GitHub App / ブランチ / PR 基盤
+
+## 素材差し替え（9.10 / Phase 3a）
+
+```bash
+node dispatch-assets.mjs --project loop-2026 --dry     # 何が差し替わるか見るだけ
+node dispatch-assets.mjs --project loop-2026           # ブランチに当てて PR を作る
+```
+
+**LLM を一切呼ばない。** したがって ZDR の取得を待たずに投入できる（13.3）。
+`ai_jobs` には `patch_kind='asset' / provider=null / cost_usd=0` で記録する。
+
+系統B のパッチ形式 `{file, old_str, new_str}` はテキスト置換なのでバイナリを表現できず、
+9.5 のプロンプトは「新規作成・削除・リネーム禁止」なので、LLM に流すと全件が
+構造的に reject される。そもそも LLM の仕事ではない。
+
+### 止めるもの（実測で確認済み）
+
+| 入力 | 結果 |
+|---|---|
+| 同じ比率・十分な解像度 | 差し替え |
+| アスペクト比が 10% 超ずれる | `needs_human` |
+| 添付の長辺が原画像の 70% 未満 | `needs_human`（引き伸ばすとぼやける） |
+| 原画像が SVG | `needs_human`（2.3 で対象外） |
+| リポジトリ上のパスを特定できない | `needs_human` |
+| EXIF 入りの添付 | 除去して出力（位置情報が入っていることがある） |
+
+### 変種（srcset / picture）
+
+`currentSrc` だけを差し替えてはならない。1440px で受けた依頼の 800w だけを更新すると、
+390px の閲覧者には古い 400w が出続ける。`srcset` を開いて**全変種を差し替える**。
+
+`/_next/image?url=...` は元画像1枚から動的生成されるので、元1枚の差し替えで全変種が
+更新される（安全側）。元画像が一意に決まらない場合は `needs_human`。
+
+### 記録
+
+- `events` に `asset.swapped` を旧ハッシュ付きで残す。差し戻し時に復元できる（手順5）
+- 同じ画像が複数ページから参照されている場合は PR 本文に明記する。
+  GitHub のコード検索が 0 を返したときは「参照なし」ではなく
+  **「確認できず」**として扱う（インデックス未反映のことが多い）

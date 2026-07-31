@@ -17,6 +17,7 @@ import {
   CATEGORY_OPTIONS,
   FieldSelect,
   InviteIssuer,
+  ProjectSettings,
   SnippetBox,
   STATUS_OPTIONS,
   SUBTYPE_OPTIONS,
@@ -197,6 +198,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           何も描画されないため、本番に常設して構いません。
         </p>
         <SnippetBox snippet={snippet} />
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-6">
+        <h2 className="mb-4 text-sm font-bold">案件設定</h2>
+        <ProjectSettings project={project} />
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">

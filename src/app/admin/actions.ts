@@ -150,6 +150,59 @@ export async function revokeInvite(formData: FormData): Promise<void> {
   revalidatePath(`/admin/projects/${projectId}`);
 }
 
+/* ── 案件設定（画面D）──────────────────────────────────────── */
+
+export interface SettingsState {
+  error?: string;
+  saved?: boolean;
+}
+
+export async function saveProjectSettings(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const user = await requireStaff();
+  const projectId = String(formData.get('project_id') || '');
+  if (!projectId) return { error: '案件が指定されていません' };
+
+  const repo = String(formData.get('repo') || '').trim();
+  let repoOwner: string | null = null;
+  let repoName: string | null = null;
+  if (repo) {
+    const m = /^([\w.-]+)\/([\w.-]+)$/.exec(repo);
+    if (!m) return { error: 'リポジトリは owner/name の形式で入力してください' };
+    repoOwner = m[1];
+    repoName = m[2];
+  }
+
+  const patch = {
+    repo_owner: repoOwner,
+    repo_name: repoName,
+    default_branch: String(formData.get('default_branch') || 'main').trim() || 'main',
+    has_nq_id: formData.get('has_nq_id') === 'on',
+    asset_swap_enabled: formData.get('asset_swap_enabled') === 'on',
+    ai_enabled: formData.get('ai_enabled') === 'on',
+    free_rounds: Number(formData.get('free_rounds') || 3),
+    max_items_per_round: Number(formData.get('max_items_per_round') || 10),
+    freeze_idle_days: Number(formData.get('freeze_idle_days') || 3),
+    auto_confirm_days: Number(formData.get('auto_confirm_days') || 14),
+  };
+
+  const res = await auditedUpdate({
+    table: 'projects',
+    id: projectId,
+    patch,
+    projectId,
+    actor: staffActor(user),
+    entity: 'project',
+    action: 'project.settings_changed',
+  });
+  if (!res.ok) return { error: res.error };
+
+  revalidatePath(`/admin/projects/${projectId}`);
+  return { saved: true };
+}
+
 /* ── ラウンド（8.2 / 8.3 / 8.6）──────────────────────────────── */
 
 export async function roundAdvance(formData: FormData): Promise<void> {
