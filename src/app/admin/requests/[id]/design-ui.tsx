@@ -65,27 +65,38 @@ export function GenerateButton({ requestId, again }: { requestId: string; again:
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const post = (body: unknown) =>
+    fetch('/api/admin/design', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then(async (r) => ({ ok: r.ok, json: (await r.json()) as Record<string, unknown> }));
+
   async function run() {
     setBusy(true);
-    setMsg(null);
+    setMsg('実例を調べています…');
     try {
-      const res = await fetch('/api/admin/design', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId }),
-      });
-      const j = (await res.json()) as {
-        error?: string;
-        made?: number;
-        failed?: ({ variant: number; reason: string } | null)[];
-      };
-      if (!res.ok) {
-        setMsg(j.error ?? '作れませんでした');
-      } else {
-        const bad = (j.failed ?? []).filter(Boolean) as { variant: number; reason: string }[];
-        setMsg(bad.length ? `${j.made}案できました（${bad.length}案は失敗）` : null);
-        router.refresh();
+      // 1段目。調査と生成をまとめると 60秒に当たって何も残らない
+      const r1 = await post({ requestId });
+      if (!r1.ok) {
+        setMsg(String(r1.json.error ?? '調査に失敗しました'));
+        return;
       }
+      const batch = r1.json.batch as number;
+      router.refresh();
+
+      // 2段目。3案は別々の呼び出しにして並行に投げる
+      setMsg('3案を作っています…');
+      const results = await Promise.all(
+        [1, 2, 3].map((variant) => post({ requestId, batch, variant })),
+      );
+      const bad = results.filter((r) => !r.ok);
+      setMsg(
+        bad.length
+          ? `${3 - bad.length}案できました（${bad.length}案は失敗: ${String(bad[0].json.error ?? '')}）`
+          : null,
+      );
+      router.refresh();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : '通信に失敗しました');
     } finally {
@@ -100,7 +111,7 @@ export function GenerateButton({ requestId, again }: { requestId: string; again:
         disabled={busy}
         className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
-        {busy ? '作成中…（1分ほどかかります）' : again ? 'もう一度作る' : '参考デザインを3案作る'}
+        {busy ? '作成中…' : again ? 'もう一度作る' : '参考デザインを3案作る'}
       </button>
       {msg && <span className="text-sm text-amber-700">{msg}</span>}
     </div>

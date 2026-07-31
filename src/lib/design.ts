@@ -250,7 +250,7 @@ export async function research(
     max_tokens: 16000,
     system: RESEARCH_SYSTEM,
     output_config: { effort: 'medium' },
-    tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 8 }],
+    tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }],
     messages: [
       {
         role: 'user',
@@ -411,8 +411,14 @@ function escapeHtml(s: string): string {
   );
 }
 
-/** 調べてから、3案を並行して作る。1案が落ちても他は残す */
-export async function generateProposals(requestId: string, staffId: string | null) {
+/**
+ * 1段目: 調べる。
+ *
+ * 調査と生成を1回の関数でやると、Vercel の 60秒上限に当たって
+ * **何も残らないまま落ちる**（実測）。段ごとに別の呼び出しにして、
+ * それぞれに 60秒を使わせる。
+ */
+export async function runResearch(requestId: string, staffId: string | null) {
   const ctx = await loadContext(requestId);
   if (!ctx) return { ok: false as const, error: '依頼が見つかりません' };
 
@@ -453,9 +459,41 @@ export async function generateProposals(requestId: string, staffId: string | nul
     { onConflict: 'request_id,batch' },
   );
 
-  const results = await Promise.all(
-    VARIANT_PROMPTS.map((v) => generateOne(ctx, v, found.brief, crop, tokens, batch, staffId)),
-  );
+  return { ok: true as const, batch, research: found, usedCrop: !!crop, hasTokens: !!tokens };
+}
 
-  return { ok: true as const, batch, results, usedCrop: !!crop, tokens, research: found };
+/** 2段目: 1案だけ作る。3案は呼び出し側が並行に投げる */
+export async function runVariant(
+  requestId: string,
+  batch: number,
+  variant: number,
+  staffId: string | null,
+) {
+  const v = VARIANT_PROMPTS.find((x) => x.variant === variant);
+  if (!v) return { ok: false as const, error: '案の番号が不正です' };
+
+  const ctx = await loadContext(requestId);
+  if (!ctx) return { ok: false as const, error: '依頼が見つかりません' };
+
+  const db = adminDb();
+  const { data: bt } = await db
+    .from('design_batches')
+    .select('brief, site_tokens')
+    .eq('request_id', requestId)
+    .eq('batch', batch)
+    .maybeSingle();
+  if (!bt) return { ok: false as const, error: '調査結果がありません。先に調べてください' };
+
+  const crop = await loadCrop(ctx.cropPath);
+  const tokens = (bt.site_tokens as SiteTokens | null) ?? null;
+
+  const r = await generateOne(ctx, v, bt.brief, crop, tokens, batch, staffId);
+  if (!r.ok) return { ok: false as const, error: r.reason, variant: r.variant };
+  return {
+    ok: true as const,
+    variant: r.variant,
+    direction: r.direction,
+    title: r.title,
+    rationale: r.rationale,
+  };
 }
