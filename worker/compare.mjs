@@ -10,7 +10,7 @@
  * intended = false が1件でもあれば社内に警告を出す。
  * クライアントには表示しない（7.4）。
  */
-import { loadEnv, supa } from './supabase.mjs';
+import { loadEnv, supa, supaKey, supaUrl } from './supabase.mjs';
 import { classify } from '../src/lib/layout-diff.mjs';
 
 const args = process.argv.slice(2);
@@ -29,8 +29,8 @@ if (!beforeId || !afterId) {
 loadEnv();
 const db = supa();
 const BUCKET = 'nq-snapshots';
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const url = supaUrl();
+const key = supaKey();
 
 async function readMap(path) {
   const res = await fetch(`${url}/storage/v1/object/${BUCKET}/${path}`, {

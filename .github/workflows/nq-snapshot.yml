@@ -1,0 +1,102 @@
+name: スナップショットの撮影
+
+# 設計 7.1。ラウンドの節目に撮る。
+#   initial : 案件開始時
+#   before  : フリーズ時
+#   after   : マージ・デプロイ後（不変デプロイURLから撮る・7.6）
+#
+# before と after が揃うと、比較（7.4）とピクセル差分（7.4末尾）まで通す。
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: '案件のスニペットキー（例: loop-2026）'
+        required: true
+        type: string
+      phase:
+        description: 'どの節目か'
+        required: true
+        type: choice
+        options: [initial, before, preview, after]
+        default: before
+      round:
+        description: 'ラウンドID（before / after では必須）'
+        type: string
+      url:
+        description: '撮影先URL（省略時は案件のサイトURL。after は不変デプロイURLを渡す）'
+        type: string
+      sha:
+        description: 'コミットSHA（after のとき記録用）'
+        type: string
+
+concurrency:
+  group: nq-snapshot-${{ inputs.project }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # ロケータの照合器はウィジェット本体と同じものを使う（6.7）。
+      # 別実装で測ると、測っているものが本番と違うものになる。
+      - name: 照合器を生成
+        run: npm ci --ignore-scripts && npm rebuild esbuild && npm run widget:build
+
+      - name: ワーカーの依存をインストール
+        working-directory: worker
+        run: npm ci --ignore-scripts && npm rebuild sharp
+
+      - name: Chromium を用意
+        working-directory: worker
+        run: npx playwright install --with-deps chromium
+
+      - name: 撮影
+        working-directory: worker
+        env:
+          NQ_SUPABASE_URL: ${{ secrets.NQ_SUPABASE_URL }}
+          NQ_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.NQ_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node snapshot.mjs \
+            --project "${{ inputs.project }}" \
+            --phase "${{ inputs.phase }}" \
+            ${{ inputs.round && format('--round {0}', inputs.round) || '' }} \
+            ${{ inputs.url && format('--url {0}', inputs.url) || '' }} \
+            ${{ inputs.sha && format('--sha {0}', inputs.sha) || '' }}
+
+      # after を撮ったら、そのラウンドの before と突き合わせるところまでやる
+      - name: 比較とピクセル差分
+        if: inputs.phase == 'after' && inputs.round != ''
+        working-directory: worker
+        env:
+          NQ_SUPABASE_URL: ${{ secrets.NQ_SUPABASE_URL }}
+          NQ_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.NQ_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node -e "
+            import('./supabase.mjs').then(async ({loadEnv, supa}) => {
+              loadEnv();
+              const db = supa();
+              const s = await db.select('snapshots',
+                'round_id=eq.${{ inputs.round }}&status=eq.ready&phase=in.(before,after)&select=id,phase,taken_at&order=taken_at');
+              const b = s.filter(x => x.phase === 'before').pop();
+              const a = s.filter(x => x.phase === 'after').pop();
+              if (!b || !a) { console.log('before / after が揃っていないので比較はしません'); process.exit(0); }
+              console.log('BEFORE=' + b.id); console.log('AFTER=' + a.id);
+            });
+          " | tee /tmp/ids.txt
+          BEFORE=$(grep '^BEFORE=' /tmp/ids.txt | cut -d= -f2 || true)
+          AFTER=$(grep '^AFTER=' /tmp/ids.txt | cut -d= -f2 || true)
+          if [ -n "$BEFORE" ] && [ -n "$AFTER" ]; then
+            node compare.mjs --before "$BEFORE" --after "$AFTER"
+            node pixel-diff.mjs --round "${{ inputs.round }}"
+          fi

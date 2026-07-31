@@ -15,7 +15,7 @@ import sharp from 'sharp';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadEnv, supa } from './supabase.mjs';
+import { loadEnv, supa, supaKey, supaUrl } from './supabase.mjs';
 
 const args = process.argv.slice(2);
 const opt = (n, d = null) => {
@@ -32,8 +32,8 @@ if (!roundId) {
 loadEnv();
 const db = supa();
 const BUCKET = 'nq-snapshots';
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const url = supaUrl();
+const key = supaKey();
 const H = { apikey: key, Authorization: 'Bearer ' + key };
 
 async function download(path) {

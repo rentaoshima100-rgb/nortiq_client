@@ -20,9 +20,17 @@ export function loadEnv() {
   }
 }
 
+/** Supabase の URL とキー。Actions では NQ_ 付きを使う（GITHUB_ は予約語のため） */
+export function supaUrl() {
+  return process.env.NQ_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+}
+export function supaKey() {
+  return process.env.NQ_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
+
 export function supa() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = process.env.NQ_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NQ_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error('NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY が必要です');
   const headers = { apikey: key, Authorization: 'Bearer ' + key };
 

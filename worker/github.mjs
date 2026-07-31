@@ -28,13 +28,30 @@ export function appJwt(appId, privateKeyPem) {
   return `${header}.${payload}.${sig}`;
 }
 
+/**
+ * GitHub Actions では `GITHUB_` で始まるシークレット名が予約されていて使えない。
+ * そのため NQ_GH_* も受け付ける。手元の .env.local は GITHUB_* のままでよい。
+ */
 export function privateKeyFromEnv() {
-  const b64 = process.env.GITHUB_APP_PRIVATE_KEY_B64;
+  const b64 = process.env.NQ_GH_APP_PRIVATE_KEY_B64 || process.env.GITHUB_APP_PRIVATE_KEY_B64;
   if (b64) return Buffer.from(b64, 'base64').toString('utf8');
-  const raw = process.env.GITHUB_APP_PRIVATE_KEY;
+  const raw = process.env.NQ_GH_APP_PRIVATE_KEY || process.env.GITHUB_APP_PRIVATE_KEY;
   if (raw) return raw.replace(/\\n/g, '\n');
-  throw new Error('GITHUB_APP_PRIVATE_KEY_B64 または GITHUB_APP_PRIVATE_KEY が必要です');
+  throw new Error('NQ_GH_APP_PRIVATE_KEY（または GITHUB_APP_PRIVATE_KEY_B64）が必要です');
 }
+
+export function appIdFromEnv() {
+  const v = process.env.NQ_GH_APP_ID || process.env.GITHUB_APP_ID;
+  if (!v) throw new Error('NQ_GH_APP_ID（または GITHUB_APP_ID）が必要です');
+  return v;
+}
+
+export function installationIdFromEnv() {
+  const v = process.env.NQ_GH_INSTALLATION_ID || process.env.GITHUB_APP_INSTALLATION_ID;
+  if (!v) throw new Error('NQ_GH_INSTALLATION_ID（または GITHUB_APP_INSTALLATION_ID）が必要です');
+  return Number(v);
+}
+
 
 async function gh(path, { token, method = 'GET', body, accept } = {}) {
   const res = await fetch(API + path, {

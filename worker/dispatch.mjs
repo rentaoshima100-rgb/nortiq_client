@@ -10,8 +10,8 @@
  *   2. バッチ効率 — 個別処理すると N ブランチ・N PR・N レビューになる
  *   3. 品質の露出 — 出来の悪い差分を見せた時点で信頼が失われる
  */
-import { supa } from './supabase.mjs';
-import { createGitHub, privateKeyFromEnv } from './github.mjs';
+import { supa, supaKey, supaUrl } from './supabase.mjs';
+import { appIdFromEnv, createGitHub, installationIdFromEnv, privateKeyFromEnv } from './github.mjs';
 import { planAssetSwap, countReferences } from './asset-swap.mjs';
 import { ensureRoundBranch, applyPatches, ensureRoundPr } from './patch.mjs';
 
@@ -82,8 +82,8 @@ export async function dispatchesToday(project, db = supa()) {
  */
 export async function dispatchAssets({ project, roundId, dry = false, log = console.log }) {
   const db = supa();
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = supaUrl();
+  const key = supaKey();
 
   const [round] = await db.select('rounds', `id=eq.${roundId}&select=*`);
   if (!round) return { ok: false, reason: 'ラウンドが見つかりません' };
@@ -98,8 +98,8 @@ export async function dispatchAssets({ project, roundId, dry = false, log = cons
   const jobs = await db.select('ai_jobs', `round_id=eq.${roundId}&select=request_id,patch_kind`);
   const already = new Set(jobs.filter((j) => j.patch_kind === 'asset').map((j) => j.request_id));
 
-  const gh = createGitHub(process.env.GITHUB_APP_ID, privateKeyFromEnv());
-  const inst = Number(process.env.GITHUB_APP_INSTALLATION_ID);
+  const gh = createGitHub(appIdFromEnv(), privateKeyFromEnv());
+  const inst = installationIdFromEnv();
   const O = project.repo_owner;
   const R = project.repo_name;
   const BASE = project.default_branch || 'main';

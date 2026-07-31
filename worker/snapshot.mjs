@@ -13,7 +13,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { capturePage, launch, VIEWPORTS, DEFAULT_MASKS } from './capture.mjs';
-import { loadEnv, supa } from './supabase.mjs';
+import { loadEnv, supa, supaKey, supaUrl } from './supabase.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);

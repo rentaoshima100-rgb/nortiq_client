@@ -1,0 +1,51 @@
+name: ディスパッチの発火
+
+# 設計 8.2 / 9.2。クライアントの操作では発火させず、サーバ側のタイマーが持つ。
+# デバウンスが 30分 なので、1時間おきで足りる。
+#
+# pull_request では動かさない。フォークからの PR にシークレットを
+# 触らせないため（公開リポジトリなので明示的に絞る）。
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: '実行せず、何が起きるかだけ出す'
+        type: boolean
+        default: false
+
+concurrency:
+  group: nq-tick
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      # 撮影はしないので Playwright のブラウザは入れない
+      - name: 依存をインストール
+        working-directory: worker
+        run: npm ci --omit=optional --ignore-scripts && npm rebuild sharp
+
+      - name: ディスパッチを判定して実行
+        working-directory: worker
+        env:
+          NQ_SUPABASE_URL: ${{ secrets.NQ_SUPABASE_URL }}
+          NQ_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.NQ_SUPABASE_SERVICE_ROLE_KEY }}
+          NQ_GH_APP_ID: ${{ secrets.NQ_GH_APP_ID }}
+          NQ_GH_APP_PRIVATE_KEY: ${{ secrets.NQ_GH_APP_PRIVATE_KEY }}
+          NQ_GH_INSTALLATION_ID: ${{ secrets.NQ_GH_INSTALLATION_ID }}
+        run: node tick.mjs ${{ inputs.dry && '--dry' || '' }}
