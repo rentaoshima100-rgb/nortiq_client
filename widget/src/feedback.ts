@@ -87,6 +87,21 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
   }
 
   function render() {
+    try {
+      renderInner();
+    } catch (e) {
+      // 描画で落ちても空のパネルを残さない。
+      // API とウィジェットの版がずれたときにここに来る。
+      console.error('[nq] パネルの描画に失敗しました', e);
+      panel.innerHTML = '';
+      panel.appendChild(head());
+      panel.appendChild(
+        el('div', 'empty', '表示できませんでした。ページを再読み込みしてお試しください。'),
+      );
+    }
+  }
+
+  function renderInner() {
     panel.innerHTML = '';
     panel.appendChild(head());
 

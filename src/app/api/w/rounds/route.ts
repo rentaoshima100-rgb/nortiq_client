@@ -52,7 +52,11 @@ export async function GET(req: Request) {
   return json(
     {
       roundsEnabled,
-      contract: !roundsEnabled ? null : {
+      // contract は常に返す。ウィジェットは 5分キャッシュされるので、
+      // API を先に変えると古い版が残っている間だけ形が食い違う。
+      // null にすると古い版が d.contract.xxx で落ちるので、
+      // 「出すかどうか」は roundsEnabled で判断させ、中身は常に入れておく。
+      contract: {
         freeRounds: auth.project.free_rounds,
         usedFreeRounds: used,
         // 「ラウンド 2 / 3」の分子。進行中のものを含めた見え方にする
