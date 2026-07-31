@@ -32,11 +32,34 @@ export function appJwt(appId, privateKeyPem) {
  * GitHub Actions では `GITHUB_` で始まるシークレット名が予約されていて使えない。
  * そのため NQ_GH_* も受け付ける。手元の .env.local は GITHUB_* のままでよい。
  */
+/**
+ * 貼り付けで崩れた PEM を直す。
+ *
+ * 秘密鍵は人の手でコピペされるので、次のどれかで壊れる。
+ *   - Windows からのコピーで CRLF になる
+ *   - 改行が失われて1行になる
+ *   - 環境変数として渡すために \n をリテラルで書いてある
+ *   - 末尾の改行が落ちている
+ * どれも `DECODER routines::unsupported` という同じ顔で落ちるので、
+ * ここで吸収する。
+ */
+export function normalizePem(input) {
+  let s = String(input).replace(/\\n/g, '\n').replace(/\r/g, '').trim();
+
+  const m = /-----BEGIN ([A-Z ]+)-----([\s\S]*?)-----END \1-----/.exec(s);
+  if (!m) return s.endsWith('\n') ? s : s + '\n';
+
+  const label = m[1];
+  const body = m[2].replace(/\s+/g, '');
+  const wrapped = body.match(/.{1,64}/g) ?? [];
+  return `-----BEGIN ${label}-----\n${wrapped.join('\n')}\n-----END ${label}-----\n`;
+}
+
 export function privateKeyFromEnv() {
   const b64 = process.env.NQ_GH_APP_PRIVATE_KEY_B64 || process.env.GITHUB_APP_PRIVATE_KEY_B64;
-  if (b64) return Buffer.from(b64, 'base64').toString('utf8');
+  if (b64) return normalizePem(Buffer.from(b64, 'base64').toString('utf8'));
   const raw = process.env.NQ_GH_APP_PRIVATE_KEY || process.env.GITHUB_APP_PRIVATE_KEY;
-  if (raw) return raw.replace(/\\n/g, '\n');
+  if (raw) return normalizePem(raw);
   throw new Error('NQ_GH_APP_PRIVATE_KEY（または GITHUB_APP_PRIVATE_KEY_B64）が必要です');
 }
 
