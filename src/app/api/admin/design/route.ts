@@ -5,9 +5,9 @@ import { adminDb } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-// 調査と生成を1回の関数でやると 60秒に当たって何も残らないまま落ちる（実測）。
-// 段ごとに別の呼び出しにして、それぞれに 60秒を使わせる。
-export const maxDuration = 60;
+// Fluid Compute 有効時の上限。無効だと 60秒で頭打ちになり、
+// 504 のうえに Vercel のエラーページ（JSON ではない）が返る。
+export const maxDuration = 300;
 
 /**
  * 社内が明示的に押したときだけ動く。クライアントの操作では発火しない。

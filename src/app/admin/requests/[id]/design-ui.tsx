@@ -65,12 +65,28 @@ export function GenerateButton({ requestId, again }: { requestId: string; again:
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const post = (body: unknown) =>
-    fetch('/api/admin/design', {
+  /**
+   * 失敗したときの本文は JSON とは限らない。504 だと Vercel の
+   * エラーページ（プレーンテキスト）が返る。素直に res.json() すると
+   * そこで落ちて、本当の失敗が「JSON として不正」に化けてしまう。
+   */
+  const post = async (body: unknown) => {
+    const r = await fetch('/api/admin/design', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    }).then(async (r) => ({ ok: r.ok, json: (await r.json()) as Record<string, unknown> }));
+    });
+    const text = await r.text();
+    try {
+      return { ok: r.ok, json: JSON.parse(text) as Record<string, unknown> };
+    } catch {
+      const hint =
+        r.status === 504
+          ? '時間内に終わりませんでした（504）'
+          : `サーバーが応答しませんでした（${r.status}）`;
+      return { ok: false, json: { error: `${hint}: ${text.slice(0, 120)}` } };
+    }
+  };
 
   async function run() {
     setBusy(true);
