@@ -87,8 +87,17 @@ export async function activeRound(
 export async function attachRound(
   projectId: string,
   db: SupabaseClient = adminDb(),
+  roundsEnabled = true,
 ): Promise<string | null> {
   const active = await activeRound(projectId, db);
+
+  // ラウンド制を切っている案件では、締切という概念が無いので
+  // 「持ち越し」も起きない。常に開いている1本に入れる。
+  if (!roundsEnabled) {
+    if (active) return active.id;
+    return await openRound(projectId, db);
+  }
+
   if (active) return active.status === 'open' ? active.id : null;
   // 進行中のラウンドが1つも無い（初回、または前回が確認済み）
   return await openRound(projectId, db);
@@ -105,6 +114,15 @@ export async function runDueTransitions(
   projectId: string,
   db: SupabaseClient = adminDb(),
 ): Promise<void> {
+  // ラウンド制を切っている案件では、締切も自動確認も起きない。
+  // 依頼は1本の open ラウンドに貯まり続ける。
+  const { data: p } = await db
+    .from('projects')
+    .select('rounds_enabled')
+    .eq('id', projectId)
+    .maybeSingle();
+  if (p && p.rounds_enabled === false) return;
+
   const now = new Date().toISOString();
 
   // ① 一定日数 新規依頼が無ければフリーズ（8.2 ②）
@@ -189,11 +207,13 @@ export async function applyFreeze(
  * - 件数上限に達したら即時フリーズ（8.5）
  */
 export async function afterRequestCreated(
-  project: ProjectRow,
+  project: ProjectRow & { rounds_enabled?: boolean },
   roundId: string | null,
   db: SupabaseClient = adminDb(),
 ): Promise<void> {
   if (!roundId) return;
+  // 締切も件数上限も無い運用にする（依頼は貯まり続ける）
+  if (project.rounds_enabled === false) return;
 
   const idleDays = project.freeze_idle_days ?? 3;
   const freezeDue = new Date(Date.now() + idleDays * 86400_000).toISOString();

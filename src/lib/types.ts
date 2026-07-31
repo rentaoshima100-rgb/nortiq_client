@@ -29,6 +29,7 @@ export interface ProjectRow {
   auto_confirm_days: number;
   max_dispatch_per_day: number;
   ai_enabled: boolean;
+  rounds_enabled: boolean;
   asset_swap_enabled: boolean;
   created_at: string;
   updated_at: string;

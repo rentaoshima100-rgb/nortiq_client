@@ -98,10 +98,12 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
       return;
     }
 
-    bd.appendChild(quota(data));
-
-    const notices = roundNotices(data);
-    for (const n of notices) bd.appendChild(n);
+    // ラウンド制を切っている案件では、消化状況もフリーズ予告も確認ボタンも出さない。
+    // 依頼の一覧と進捗だけを見せる。
+    if (data.roundsEnabled && data.contract) {
+      bd.appendChild(quota(data));
+      for (const n of roundNotices(data)) bd.appendChild(n);
+    }
 
     if (!rejecting) for (const n of beforeAfter()) bd.appendChild(n);
 
@@ -163,7 +165,8 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
   }
 
   function quota(d: RoundsResponse): HTMLElement {
-    const paid = d.round ? !d.round.countsFree : d.contract.usedFreeRounds >= d.contract.freeRounds;
+    const c = d.contract!;
+    const paid = d.round ? !d.round.countsFree : c.usedFreeRounds >= c.freeRounds;
     const box = el('div', 'quota' + (paid ? ' paid' : ''));
     const top = el('div', 'top');
     top.appendChild(el('span', 'lb', '無償修正ラウンド'));
@@ -174,9 +177,9 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
         paid
           ? '無償分は終了'
           : 'ラウンド ' +
-              Math.min(d.contract.usedFreeRounds + (d.round ? 1 : 0), d.contract.freeRounds) +
+              Math.min(c.usedFreeRounds + (d.round ? 1 : 0), c.freeRounds) +
               ' / ' +
-              d.contract.freeRounds,
+              c.freeRounds,
       ),
     );
     box.appendChild(top);
@@ -186,8 +189,8 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
     const ratio = Math.min(
       100,
       Math.round(
-        ((d.contract.usedFreeRounds + (d.round && d.round.countsFree ? 1 : 0)) /
-          Math.max(1, d.contract.freeRounds)) *
+        ((c.usedFreeRounds + (d.round && d.round.countsFree ? 1 : 0)) /
+          Math.max(1, c.freeRounds)) *
           100,
       ),
     );
@@ -201,7 +204,7 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
         'note',
         paid
           ? 'このラウンドの修正は別途お見積りのご案内になります'
-          : d.contract.freeRounds + 'ラウンド目以降は別途お見積りとなります',
+          : c.freeRounds + 'ラウンド目以降は別途お見積りとなります',
       ),
     );
     return box;

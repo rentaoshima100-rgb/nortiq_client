@@ -183,6 +183,7 @@ export async function saveProjectSettings(
     repo_owner: repoOwner,
     repo_name: repoName,
     default_branch: String(formData.get('default_branch') || 'main').trim() || 'main',
+    rounds_enabled: formData.get('rounds_enabled') === 'on',
     has_nq_id: formData.get('has_nq_id') === 'on',
     asset_swap_enabled: formData.get('asset_swap_enabled') === 'on',
     ai_enabled: formData.get('ai_enabled') === 'on',

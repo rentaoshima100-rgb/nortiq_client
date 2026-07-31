@@ -32,6 +32,8 @@ export async function GET(req: Request) {
   // 読まれたときに期限の遷移へ追いつく（スケジューラを前提にしない）
   await runDueTransitions(projectId, db);
 
+  const roundsEnabled = auth.project.rounds_enabled !== false;
+
   const [round, used] = await Promise.all([
     activeRound(projectId, db),
     usedFreeRounds(projectId, db),
@@ -49,14 +51,16 @@ export async function GET(req: Request) {
 
   return json(
     {
-      contract: {
+      roundsEnabled,
+      contract: !roundsEnabled ? null : {
         freeRounds: auth.project.free_rounds,
         usedFreeRounds: used,
         // 「ラウンド 2 / 3」の分子。進行中のものを含めた見え方にする
         currentIndex: Math.min(used + (round ? 1 : 0), auth.project.free_rounds + 99),
       },
-      round: round
-        ? {
+      round: !roundsEnabled || !round
+        ? null
+        : {
             id: round.id,
             seq: round.seq,
             status: round.status,
@@ -69,8 +73,7 @@ export async function GET(req: Request) {
             confirmInDays: round.status === 'published' ? daysUntil(round.confirm_due_at) : null,
             canConfirm: round.status === 'published',
             canReject: round.status === 'published' && (round.reject_count ?? 0) < 2,
-          }
-        : null,
+          },
       carriedOverCount: carriedOver,
       requests: (reqs ?? []).map((r) => ({
         id: r.id,

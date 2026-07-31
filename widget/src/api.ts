@@ -32,7 +32,9 @@ export interface RoundDTO {
 }
 
 export interface RoundsResponse {
-  contract: { freeRounds: number; usedFreeRounds: number; currentIndex: number };
+  /** false ならラウンドの締切・カウント・確認を行わない案件 */
+  roundsEnabled: boolean;
+  contract: { freeRounds: number; usedFreeRounds: number; currentIndex: number } | null;
   round: RoundDTO | null;
   carriedOverCount: number;
   requests: {

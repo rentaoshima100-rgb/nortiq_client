@@ -103,6 +103,7 @@ export function ProjectSettings({
     repo_name: string | null;
     default_branch: string | null;
     line_to: string | null;
+    rounds_enabled: boolean;
     has_nq_id: boolean;
     asset_swap_enabled: boolean;
     ai_enabled: boolean;
@@ -162,6 +163,22 @@ export function ProjectSettings({
       </div>
 
       <div className="space-y-2 rounded-lg bg-slate-50 p-4">
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="rounds_enabled"
+            defaultChecked={project.rounds_enabled}
+            className="mt-1"
+          />
+          <span>
+            <b>ラウンド制を使う</b>
+            <span className="block text-xs text-slate-500">
+              外すと、締切・無償回数のカウント・確認のやりとりを行いません。
+              依頼は貯まり続け、進捗は依頼ごとの状態で管理します。
+              撮影・差分・素材差し替えはどちらでも動きます。
+            </span>
+          </span>
+        </label>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" name="has_nq_id" defaultChecked={project.has_nq_id} className="mt-1" />
           <span>

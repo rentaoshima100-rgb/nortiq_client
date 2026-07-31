@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
   // 期限切れのフリーズ・自動確認に追いついてから行き先を決める
   await runDueTransitions(auth.project.id, db);
-  const roundId = await attachRound(auth.project.id, db);
+  const roundId = await attachRound(auth.project.id, db, auth.project.rounds_enabled !== false);
 
   // 採番は project_counters で行う。max(seq)+1 は同時投稿で衝突する（5.3）。
   const { data: seq, error: seqErr } = await db.rpc('next_request_seq', {
