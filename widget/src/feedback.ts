@@ -336,6 +336,26 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
         pair.appendChild(fig);
       }
       box.appendChild(pair);
+
+      // 変わったところ（ピクセル差分・7.4 末尾）。見せるためのもので、判定には使わない。
+      if (item.diff) {
+        const fig = el('figure', 'd');
+        fig.appendChild(
+          el(
+            'figcaption',
+            undefined,
+            '変わったところ' +
+              (item.diffRatio != null ? `（${(item.diffRatio * 100).toFixed(1)}%）` : ''),
+          ),
+        );
+        const img = el('img');
+        img.src = item.diff;
+        img.alt = '変わったところ';
+        img.loading = 'lazy';
+        fig.appendChild(img);
+        box.appendChild(fig);
+      }
+
       out.push(box);
     }
     return out;

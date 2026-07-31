@@ -11,7 +11,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { capturePage, launch, VIEWPORTS, DEFAULT_MASKS } from './capture.mjs';
-import { classify } from './diff.mjs';
+import { classify } from '../src/lib/layout-diff.mjs';
 import { saveShot } from './save.mjs';
 
 const args = process.argv.slice(2);

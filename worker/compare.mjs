@@ -11,7 +11,7 @@
  * クライアントには表示しない（7.4）。
  */
 import { loadEnv, supa } from './supabase.mjs';
-import { classify } from './diff.mjs';
+import { classify } from '../src/lib/layout-diff.mjs';
 
 const args = process.argv.slice(2);
 const opt = (n, d = null) => {

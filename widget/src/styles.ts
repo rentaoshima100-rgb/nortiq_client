@@ -262,6 +262,8 @@ textarea:focus { border-color: #2563eb; background: #fff; }
   width: 100%; border-radius: 6px; border: 1px solid #e2e8f0; display: block; background: #f8fafc;
 }
 .ba .one { grid-template-columns: 1fr; }
+.ba .d { margin-top: 10px; }
+.ba .d figcaption { background: #fdf4ff; color: #a21caf; }
 
 /* ── トースト ────────────────────────────────────── */
 .toast {

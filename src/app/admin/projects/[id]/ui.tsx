@@ -102,6 +102,7 @@ export function ProjectSettings({
     repo_owner: string | null;
     repo_name: string | null;
     default_branch: string | null;
+    line_to: string | null;
     has_nq_id: boolean;
     asset_swap_enabled: boolean;
     ai_enabled: boolean;
@@ -127,6 +128,15 @@ export function ProjectSettings({
           <input name="repo" defaultValue={repo} placeholder="owner/name" className={FIELD} />
           <p className="mt-1 text-xs text-slate-400">
             GitHub App がこのリポジトリにインストールされている必要があります
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-600">
+            LINE の送り先（ユーザーID / グループID）
+          </label>
+          <input name="line_to" defaultValue={project.line_to ?? ''} placeholder="U1234... 未設定なら通知しない" className={FIELD} />
+          <p className="mt-1 text-xs text-slate-400">
+            公開通知・確認リマインド・締切予告を送ります（11.1）
           </p>
         </div>
         <div>

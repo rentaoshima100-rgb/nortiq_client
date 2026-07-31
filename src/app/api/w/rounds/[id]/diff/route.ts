@@ -64,12 +64,15 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     ? ((
         await db
           .from('request_shots')
-          .select('request_id, snapshot_id, crop_path, match_tier')
+          .select('request_id, snapshot_id, crop_path, match_tier, diff_path, diff_ratio')
           .in('snapshot_id', snapIds)
       ).data ?? [])
     : [];
 
-  const paths = shots.map((s) => s.crop_path).filter(Boolean) as string[];
+  const paths = [
+    ...shots.map((s) => s.crop_path),
+    ...shots.map((s) => s.diff_path),
+  ].filter(Boolean) as string[];
   const signed = new Map<string, string>();
   if (paths.length) {
     const { data: urls } = await db.storage.from(SNAPSHOTS_BUCKET).createSignedUrls(paths, 900);
@@ -82,13 +85,21 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return s?.crop_path ? (signed.get(s.crop_path) ?? null) : null;
   };
 
-  const items = (requests ?? []).map((r) => ({
-    requestId: r.id,
-    seq: r.seq,
-    body: r.body,
-    before: pick(r.id, beforeSnap?.id),
-    after: pick(r.id, afterSnap?.id),
-  }));
+  const items = (requests ?? []).map((r) => {
+    // 差分画像は after 側のショットに載っている（7.4 末尾）
+    const afterShot = shots.find(
+      (x) => x.request_id === r.id && x.snapshot_id === afterSnap?.id,
+    );
+    return {
+      requestId: r.id,
+      seq: r.seq,
+      body: r.body,
+      before: pick(r.id, beforeSnap?.id),
+      after: pick(r.id, afterSnap?.id),
+      diff: afterShot?.diff_path ? (signed.get(afterShot.diff_path) ?? null) : null,
+      diffRatio: afterShot?.diff_ratio ?? null,
+    };
+  });
 
   return json(
     {

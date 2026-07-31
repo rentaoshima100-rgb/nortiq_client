@@ -9,6 +9,7 @@
     "determinism": "node cli.mjs --twice"
   },
   "dependencies": {
+    "odiff-bin": "^4.5.0",
     "pg": "^8.22.0",
     "playwright": "^1.49.1",
     "sharp": "^0.33.5"

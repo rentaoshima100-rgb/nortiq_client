@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auditedUpdate, logEvent } from '@/lib/events';
 import { newToken, sha256hex } from '@/lib/hash';
+import { notifyOnce, publishedMessage } from '@/lib/line';
 import { advanceRound, openRound } from '@/lib/rounds';
 import { adminDb } from '@/lib/supabase/admin';
 import { requireStaff, staffActor } from '@/lib/staff';
@@ -175,7 +176,10 @@ export async function saveProjectSettings(
     repoName = m[2];
   }
 
+  const lineTo = String(formData.get('line_to') || '').trim() || null;
+
   const patch = {
+    line_to: lineTo,
     repo_owner: repoOwner,
     repo_name: repoName,
     default_branch: String(formData.get('default_branch') || 'main').trim() || 'main',
@@ -216,7 +220,20 @@ export async function roundAdvance(formData: FormData): Promise<void> {
   const { data: project } = await db.from('projects').select('*').eq('id', projectId).maybeSingle();
   if (!project) return;
 
-  await advanceRound(projectId, roundId, to, staffActor(user), project as ProjectRow, db);
+  const res = await advanceRound(projectId, roundId, to, staffActor(user), project as ProjectRow, db);
+
+  // 公開したらクライアントに知らせる（11.1）。
+  // 公開へ進めるのは人間の判断なので、通知もここで初めて出る（9.8）。
+  if (res.ok && to === 'published') {
+    const p = project as ProjectRow & { line_to: string | null };
+    await notifyOnce({
+      projectId,
+      to: p.line_to ?? null,
+      dedupeKey: `round:${roundId}:published`,
+      text: publishedMessage(p.name, p.site_url, p.auto_confirm_days ?? 14),
+    });
+  }
+
   revalidatePath(`/admin/projects/${projectId}`);
 }
 

@@ -265,7 +265,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         <section className="rounded-xl border border-slate-200 bg-white p-6">
           <div className="mb-3 flex items-baseline justify-between">
             <h2 className="text-sm font-bold">スナップショット</h2>
-            <span className="text-xs text-slate-400">worker/snapshot.mjs が撮影します</span>
+            <Link
+              href={`/admin/projects/${project.id}/versions`}
+              className="text-xs font-semibold text-blue-700 hover:underline"
+            >
+              変更履歴を見る →
+            </Link>
           </div>
 
           {unintendedCount > 0 && (

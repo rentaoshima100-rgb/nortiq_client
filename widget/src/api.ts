@@ -58,6 +58,8 @@ export interface RoundDiffResponse {
     body: string;
     before: string | null;
     after: string | null;
+    diff: string | null;
+    diffRatio: number | null;
   }[];
 }
 
