@@ -1,4 +1,14 @@
-import { cssPath, docRect, ownText, sha1Hex } from './util';
+import {
+  cssEsc,
+  cssPath,
+  deepText,
+  docRect,
+  hrefKey,
+  ownText,
+  richPath,
+  sha1Hex,
+  stableId,
+} from './util';
 
 /** 設計 6.7 */
 export interface Locator {
@@ -15,6 +25,19 @@ export interface Locator {
   docHeight: number;
   /** img / picture のグループ内判別子。currentSrc ではなく src 属性（6.7） */
   srcAttr: string | null;
+
+  /* ── Tier 0（注入なし）の手がかり ──────────────────────────────────────
+   * 注入を入れていないサイトでも段2に留まるための材料。
+   * 古い依頼のロケータには入っていないので、参照側は必ず欠損を許すこと。
+   * -------------------------------------------------------------------- */
+  /** 作者が書いた id。nq-id と同じ「識別子の宣言」として扱う */
+  elId?: string | null;
+  /** 子孫を含めたテキストのハッシュ。ownText と同じなら null（送る量を増やさない） */
+  deepTextHash?: string | null;
+  /** リンクの行き先。同一オリジンは絶対パスに寄せてある */
+  hrefKey?: string | null;
+  /** クラス・id を含む経路。cssPath より弁別力が高い */
+  richPath?: string | null;
 }
 
 /** 設計 6.8 */
@@ -79,6 +102,7 @@ export function collectLocator(target: Element): Locator {
     nqOrdinal = i >= 0 ? i : null;
   }
   const text = ownText(target);
+  const deep = deepText(target);
   return {
     nqId: nqId || null,
     nqOrdinal,
@@ -95,6 +119,10 @@ export function collectLocator(target: Element): Locator {
       document.body ? document.body.scrollHeight : 0,
     ),
     srcAttr: srcAttrOf(target),
+    elId: stableId(target),
+    deepTextHash: deep && deep !== text ? textHashOf(deep) : null,
+    hrefKey: hrefKey(target),
+    richPath: richPath(target),
   };
 }
 
@@ -102,6 +130,26 @@ function nqIdGroup(nqId: string): Element[] {
   const esc =
     typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(nqId) : nqId.replace(/"/g, '\\"');
   return Array.prototype.slice.call(document.querySelectorAll('[data-nq-id="' + esc + '"]'));
+}
+
+function qsa(selector: string): Element[] {
+  return Array.prototype.slice.call(document.querySelectorAll(selector));
+}
+
+/**
+ * 同じタグの中で条件に合うものが「ちょうど1つ」のときだけ返す。
+ * 2つ以上あるなら、それはその手がかりでは判別できないということなので、
+ * 先頭を返さずに次の段へ渡す（6.7）。
+ */
+function uniqueAmongTag(tag: string, pred: (e: Element) => boolean): Element | null {
+  const cands = document.getElementsByTagName(tag);
+  let hit: Element | null = null;
+  for (let i = 0; i < cands.length; i++) {
+    if (!pred(cands[i])) continue;
+    if (hit) return null;
+    hit = cands[i];
+  }
+  return hit;
 }
 
 /** img / picture のときだけ入る（6.8 / 9.10） */
@@ -216,6 +264,16 @@ export function findByLocator(loc: Locator): MatchResult | null {
     }
   }
 
+  // 段1: 作者が書いた id。nq-id と同じ「識別子の宣言」なので同じ段に置く。
+  // ビルドのたびに変わる自動生成 id は stableId が採取時に弾いている。
+  // confirmed にする以上、文書内で一意であることまで確かめる。
+  if (loc.elId) {
+    const byId = qsa('#' + cssEsc(loc.elId));
+    if (byId.length === 1 && byId[0].tagName === loc.tag) {
+      return { el: byId[0], tier: 'confirmed' };
+    }
+  }
+
   // ロケータに nqId があったのに、その id が文書内に1つも無い場合。
   // 要素そのものが消えている（別のページ／別のビューを見ている）可能性が高い。
   // ここで cssPath や bbox に落ちると、**別のページの無関係な要素を掴む**。
@@ -223,17 +281,51 @@ export function findByLocator(loc: Locator): MatchResult | null {
   // という形で表に出る。強い手がかりから弱い手がかりへは降りない。
   const nqIdMissing = !!loc.nqId && nqIdGroup(loc.nqId).length === 0;
 
-  // 段2: textHash + tag（nqId なし）
-  if (loc.textHash) {
-    const cands = Array.prototype.slice.call(
-      document.getElementsByTagName(loc.tag),
-    ) as Element[];
-    const hits = cands.filter((e) => textHashOf(ownText(e)) === loc.textHash);
-    if (hits.length === 1) return { el: hits[0], tier: 'provisional' };
+  // 段2: 作者が書いた判別子。
+  // src / href は「その要素が何を指すか」の宣言であって、座標や序数のような
+  // 当てずっぽうではない。注入なしのサイトでは画像とリンクがここで拾える。
+  // 採取時にしか使っていなかった srcAttr を、nqId が無い経路でも使う。
+  if (loc.tag === 'IMG' || loc.tag === 'PICTURE') {
+    if (loc.srcAttr) {
+      const hit = uniqueAmongTag(loc.tag, (e) => srcAttrOf(e) === loc.srcAttr);
+      if (hit) return { el: hit, tier: 'provisional' };
+    }
+  } else if (loc.hrefKey) {
+    const hit = uniqueAmongTag(loc.tag, (e) => hrefKey(e) === loc.hrefKey);
+    if (hit) return { el: hit, tier: 'provisional' };
   }
 
-  // nqId があったのに見つからないなら、段3（cssPath / bbox）には降りない
+  // 段2: 本文。まず直下のテキスト（従来どおり）。
+  if (loc.textHash) {
+    const hit = uniqueAmongTag(loc.tag, (e) => textHashOf(ownText(e)) === loc.textHash);
+    if (hit) return { el: hit, tier: 'provisional' };
+  }
+
+  // 段2: 子孫を含めたテキスト。
+  // <button><span>送信</span></button> や、見出しを1文字ずつ span に割る
+  // 出現アニメーションでは ownText が空になり、上の段が丸ごと効かない。
+  if (loc.deepTextHash) {
+    const hit = uniqueAmongTag(loc.tag, (e) => textHashOf(deepText(e)) === loc.deepTextHash);
+    if (hit) return { el: hit, tier: 'provisional' };
+  }
+
+  // nqId があったのに見つからないなら、段3（richPath / cssPath / bbox）には降りない
   if (nqIdMissing) return null;
+
+  // 段3: richPath。cssPath と同じ構造の手がかりだが、クラスと id を含む分だけ強い。
+  // 同じ文言が並ぶ「→」のような span は、本文では区別がつかずここで拾う。
+  // 文言の一致は求めない。指摘を受けて文言を直すのが本来の流れであり、
+  // そこで外すと「直したらピンが消える」になる。
+  if (loc.richPath) {
+    try {
+      const hits = qsa(loc.richPath);
+      if (hits.length === 1 && hits[0].tagName === loc.tag) {
+        return { el: hits[0], tier: 'provisional' };
+      }
+    } catch {
+      /* 不正なセレクタは無視 */
+    }
+  }
 
   // 段3: cssPath
   try {

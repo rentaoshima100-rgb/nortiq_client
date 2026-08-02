@@ -19,6 +19,12 @@ export const LocatorSchema = z.object({
   viewportW: z.number().int(),
   docHeight: z.number().int(),
   srcAttr: z.string().max(4096).nullable().optional(),
+  // Tier 0（注入なし）の手がかり。古いウィジェットからは送られてこないので
+  // すべて optional。widget/src/locator.ts の Locator と対にすること。
+  elId: z.string().max(128).nullable().optional(),
+  deepTextHash: z.string().max(80).nullable().optional(),
+  hrefKey: z.string().max(2048).nullable().optional(),
+  richPath: z.string().max(1024).nullable().optional(),
 });
 
 /** 設計 6.8 の target（img / picture のときだけ） */

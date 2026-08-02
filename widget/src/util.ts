@@ -139,6 +139,102 @@ export function cssPath(el: Element): string {
   return parts.join(' > ');
 }
 
+/* ── Tier 0（注入なし）用の手がかり ────────────────────────────────────────
+ * data-nq-id が無いサイトでも段2に留まれるようにするための材料。
+ * どれも「作者が書いたもの」を優先し、座標や序数のような
+ * 当てになる根拠のないものは最後まで使わない。
+ * ------------------------------------------------------------------------- */
+
+/**
+ * 子孫を含めたテキスト。ownText は直下のテキストノードだけを見るので、
+ * <button><span>送信</span></button> や、見出しを1文字ずつ span に割る
+ * 出現アニメーションでは空になり、そこで段2の手がかりを失う。
+ */
+export function deepText(el: Element): string {
+  return (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+}
+
+/** フレームワークが振った id は、ビルドのたびに変わるので足場にしない。 */
+const UNSTABLE_ID = /^(:|radix-|mui-|headlessui-|react-aria)|^[0-9]+$|[0-9a-f]{16,}/i;
+
+/** 作者が書いた id だけを返す。 */
+export function stableId(el: Element): string | null {
+  const id = el.getAttribute('id');
+  if (!id || id.length > 128) return null;
+  return UNSTABLE_ID.test(id) ? null : id;
+}
+
+/** CSS Modules / emotion / styled-components が生成したクラスは毎ビルド変わる。 */
+const UNSTABLE_CLASS = /^(css-|sc-|jsx-|emotion-)|__[0-9a-zA-Z]{5,}$|^[0-9a-f]{8,}$/;
+
+function stableClasses(el: Element): string[] {
+  const raw = (el.getAttribute('class') || '').trim();
+  if (!raw) return [];
+  const out: string[] = [];
+  for (const c of raw.split(/\s+/)) {
+    if (!c || UNSTABLE_CLASS.test(c)) continue;
+    out.push(c);
+    if (out.length === 2) break;
+  }
+  return out;
+}
+
+export function cssEsc(s: string): string {
+  return typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(s) : s.replace(/["\\]/g, '\\$&');
+}
+
+/**
+ * cssPath の弁別力を上げた版。
+ *
+ * cssPath はタグと序数しか持たないため、`div > div:nth-of-type(3) > span` のような
+ * 「どこにでもある形」になりやすく、上に1要素挿しただけで別物を指す。
+ * クラスと id を混ぜると、並びが変わっても効き、同型の兄弟とも区別がつく。
+ * セレクタとしてそのまま querySelectorAll に渡せる形で返す。
+ */
+export function richPath(el: Element): string {
+  const parts: string[] = [];
+  let cur: Element | null = el;
+  while (cur && cur.nodeType === 1 && cur !== document.body && parts.length < 6) {
+    const id = stableId(cur);
+    if (id) {
+      // id は文書内で一意な想定。ここより上はたどらなくてよい。
+      parts.unshift('#' + cssEsc(id));
+      break;
+    }
+    let seg = cur.tagName.toLowerCase();
+    for (const c of stableClasses(cur)) seg += '.' + cssEsc(c);
+    const parent: Element | null = cur.parentElement;
+    if (parent) {
+      let index = 0;
+      let total = 0;
+      for (let i = 0; i < parent.children.length; i++) {
+        const c = parent.children[i];
+        if (c.tagName === cur.tagName) {
+          total++;
+          if (c === cur) index = total;
+        }
+      }
+      if (total > 1) seg += ':nth-of-type(' + index + ')';
+    }
+    parts.unshift(seg);
+    cur = parent;
+  }
+  return parts.join(' > ');
+}
+
+/** リンクの行き先。ドメイン移行で全滅しないよう、同一オリジンは絶対パスに寄せる。 */
+export function hrefKey(el: Element): string | null {
+  const raw = el.getAttribute('href');
+  if (raw == null || raw === '' || raw.length > 2048) return null;
+  try {
+    const u = new URL(raw, location.href);
+    if (u.origin === location.origin) return u.pathname + u.search + u.hash;
+  } catch {
+    /* href が URL として壊れていてもそのまま使う */
+  }
+  return raw;
+}
+
 /** 文書座標の矩形 */
 export function docRect(el: Element): { x: number; y: number; w: number; h: number } {
   const r = el.getBoundingClientRect();
