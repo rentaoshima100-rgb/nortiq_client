@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useCallback, useEffect, useState } from 'react';
 import {
   issueInvite,
   saveProjectSettings,
@@ -37,11 +37,99 @@ export function SnippetBox({ snippet }: { snippet: string }) {
 
 const initialInvite: InviteState = {};
 
+interface Readiness {
+  canInvite: boolean;
+  reason: string | null;
+  refUrl: string | null;
+  live: { nqIdCount: number };
+  deploy: { state: string; environment: string | null } | null;
+}
+
+/**
+ * 招待を送ってよいかを、本番 HTML の現物で確かめてから出す。
+ *
+ * リポジトリを編集した瞬間はまだ本番に出ていない。そこで招待を送ると
+ * クライアントは何も出ないページを開くことになり、こちらの信用で払う。
+ *
+ * ただし塞ぎ切りにはしない。ステージングで先に渡す、といった運用が
+ * 実際にあるので、確認したうえで通せる形にする。
+ */
 export function InviteIssuer({ projectId }: { projectId: string }) {
   const [state, action, pending] = useActionState(issueInvite, initialInvite);
+  const [ready, setReady] = useState<Readiness | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [override, setOverride] = useState(false);
+
+  const check = useCallback(async () => {
+    setChecking(true);
+    try {
+      const r = await fetch(`/api/admin/deploy-status?projectId=${projectId}`);
+      setReady(r.ok ? ((await r.json()) as Readiness) : null);
+    } catch {
+      setReady(null);
+    } finally {
+      setChecking(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    void check();
+  }, [check]);
+
+  // 反映待ちのあいだだけ、自分で見に行く。押し直させない。
+  // 出たら止める。出ないまま 5 分たっても止める（無限に叩かない）。
+  useEffect(() => {
+    if (!ready || ready.canInvite) return;
+    let n = 0;
+    const t = setInterval(() => {
+      if (++n > 20) return clearInterval(t);
+      void check();
+    }, 15000);
+    return () => clearInterval(t);
+  }, [ready, check]);
+
+  const blocked = !!ready && !ready.canInvite && !override;
 
   return (
     <div className="space-y-3">
+      {ready && ready.canInvite && (
+        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+          本番にスニペットが出ています。招待を送れます。
+          {ready.live.nqIdCount > 0 && `（data-nq-id も ${ready.live.nqIdCount} 箇所）`}
+        </p>
+      )}
+
+      {ready && !ready.canInvite && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <p>
+            <strong>まだ本番に出ていません。</strong> {ready.reason}
+          </p>
+          {ready.deploy && (
+            <p className="mt-1">
+              デプロイ: {ready.deploy.environment ?? '—'} / {ready.deploy.state}
+            </p>
+          )}
+          <p className="mt-1 flex flex-wrap items-center gap-3">
+            {ready.refUrl && (
+              <a className="underline" href={ready.refUrl} target="_blank" rel="noreferrer">
+                出した PR / コミットを見る
+              </a>
+            )}
+            <button type="button" onClick={() => void check()} className="underline">
+              {checking ? '確認しています…' : 'いま確認する'}
+            </button>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={override}
+                onChange={(e) => setOverride(e.target.checked)}
+              />
+              それでも発行する
+            </label>
+          </p>
+        </div>
+      )}
+
       <form action={action} className="flex gap-2">
         <input type="hidden" name="project_id" value={projectId} />
         <input
@@ -50,7 +138,8 @@ export function InviteIssuer({ projectId }: { projectId: string }) {
           className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:bg-white"
         />
         <button
-          disabled={pending}
+          disabled={pending || blocked}
+          title={blocked ? 'スニペットがまだ本番に出ていません' : undefined}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {pending ? '発行中…' : '招待リンクを発行'}
@@ -102,6 +191,7 @@ export function ProjectSettings({
     repo_owner: string | null;
     repo_name: string | null;
     default_branch: string | null;
+    allow_direct_commit: boolean;
     line_to: string | null;
     rounds_enabled: boolean;
     has_nq_id: boolean;
@@ -143,6 +233,20 @@ export function ProjectSettings({
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">既定ブランチ</label>
           <input name="default_branch" defaultValue={project.default_branch ?? 'main'} className={FIELD} />
+          <label className="mt-2 flex items-start gap-2 text-xs text-slate-600">
+            <input
+              type="checkbox"
+              name="allow_direct_commit"
+              defaultChecked={project.allow_direct_commit}
+              className="mt-0.5"
+            />
+            <span>
+              このブランチに直接コミットする
+              <span className="block text-slate-400">
+                外すと PR を出すだけ。他人のリポジトリでは外したままにしてください
+              </span>
+            </span>
+          </label>
         </div>
       </div>
 

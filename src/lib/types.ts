@@ -20,6 +20,14 @@ export interface ProjectRow {
   repo_owner: string | null;
   repo_name: string | null;
   default_branch: string | null;
+  /** GitHub App のインストール ID。オーナーが承認したときに決まる（0012） */
+  gh_installation_id: number | null;
+  /** 既定は false（PR を出すだけ）。直接コミットは案件ごとに明示的に許可する */
+  allow_direct_commit: boolean;
+  /** スニペットを入れたコミット。本番に出たかの判定に使う */
+  snippet_commit_sha: string | null;
+  snippet_ref_url: string | null;
+  snippet_installed_at: string | null;
   stack: Stack;
   has_nq_id: boolean;
   free_rounds: number;

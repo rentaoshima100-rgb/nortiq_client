@@ -227,6 +227,10 @@ export async function saveProjectSettings(
     repo_owner: repoOwner,
     repo_name: repoName,
     default_branch: String(formData.get('default_branch') || 'main').trim() || 'main',
+    allow_direct_commit: formData.get('allow_direct_commit') === 'on',
+    // リポジトリを付け替えたときに、前のオーナーのインストール ID が残ると
+    // 「権限はあるのに別のリポジトリを触る」になる。毎回引き直させる。
+    gh_installation_id: null,
     rounds_enabled: formData.get('rounds_enabled') === 'on',
     has_nq_id: formData.get('has_nq_id') === 'on',
     asset_swap_enabled: formData.get('asset_swap_enabled') === 'on',
