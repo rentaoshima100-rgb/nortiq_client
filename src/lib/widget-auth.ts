@@ -59,7 +59,10 @@ export async function authenticateWidget(
     return { ok: false, status: 403, error: '案件キーが一致しません' };
   }
 
-  if (origin !== project.site_origin) {
+  // 独自ドメインへの切り替え期間は、案件が複数のオリジンを持つ。
+  // ワイルドカードは使わない。候補が増えるだけで、照合は完全一致のまま（6.1 / 10.4）。
+  const origins = [project.site_origin, ...(project.extra_origins ?? [])];
+  if (!origins.includes(origin)) {
     return { ok: false, status: 403, error: 'オリジンが一致しません' };
   }
 

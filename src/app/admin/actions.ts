@@ -224,6 +224,12 @@ export async function saveProjectSettings(
 
   const patch = {
     line_to: lineTo,
+    // 「, 」区切りで受け、末尾スラッシュを落として正規化する。
+    // オリジンは完全一致で照合するので、表記ゆれがそのまま不具合になる。
+    extra_origins: String(formData.get('extra_origins') || '')
+      .split(/[,\s]+/)
+      .map((s) => s.trim().replace(/\/+$/, ''))
+      .filter((s) => /^https?:\/\//.test(s)),
     repo_owner: repoOwner,
     repo_name: repoName,
     default_branch: String(formData.get('default_branch') || 'main').trim() || 'main',

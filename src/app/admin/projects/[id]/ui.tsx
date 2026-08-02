@@ -193,6 +193,7 @@ export function ProjectSettings({
     default_branch: string | null;
     allow_direct_commit: boolean;
     line_to: string | null;
+    extra_origins: string[] | null;
     rounds_enabled: boolean;
     has_nq_id: boolean;
     asset_swap_enabled: boolean;
@@ -219,6 +220,21 @@ export function ProjectSettings({
           <input name="repo" defaultValue={repo} placeholder="owner/name" className={FIELD} />
           <p className="mt-1 text-xs text-slate-400">
             GitHub App がこのリポジトリにインストールされている必要があります
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-600">
+            追加で許可するオリジン
+          </label>
+          <input
+            name="extra_origins"
+            defaultValue={(project.extra_origins ?? []).join(', ')}
+            placeholder="https://example.com, https://www.example.com"
+            className={FIELD}
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            独自ドメインへの切り替え期間は、旧・新の両方をここに入れておきます。
+            入っていないオリジンからは依頼を送れません（ワイルドカードは使えません）。
           </p>
         </div>
         <div>

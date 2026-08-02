@@ -16,6 +16,8 @@ export interface ProjectRow {
   client_name: string;
   site_url: string;
   site_origin: string;
+  /** site_origin に加えて許可するオリジン。独自ドメインへの切り替え期間などに使う */
+  extra_origins: string[];
   snippet_key: string;
   repo_owner: string | null;
   repo_name: string | null;

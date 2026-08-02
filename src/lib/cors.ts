@@ -22,12 +22,20 @@ export async function isAllowedOrigin(origin: string | null): Promise<boolean> {
 
   let allowed = false;
   try {
-    const { data } = await adminDb()
-      .from('projects')
-      .select('id')
-      .eq('site_origin', origin)
-      .limit(1);
+    const db = adminDb();
+    const { data } = await db.from('projects').select('id').eq('site_origin', origin).limit(1);
     allowed = !!data && data.length > 0;
+
+    // 独自ドメインへの切り替え期間など、1案件が複数のオリジンを持つことがある。
+    // ワイルドカードは使わない。候補が増えるだけで、照合は完全一致のまま。
+    if (!allowed) {
+      const { data: extra } = await db
+        .from('projects')
+        .select('id')
+        .contains('extra_origins', [origin])
+        .limit(1);
+      allowed = !!extra && extra.length > 0;
+    }
   } catch (e) {
     // 環境変数が未設定など。許可しない側に倒す。
     console.error('[cors] オリジンの照会に失敗しました', e);
