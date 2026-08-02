@@ -13,6 +13,8 @@ export interface SiteTokens {
   /** 余白の刻み */
   spacings: string[];
   radii: string[];
+  /** 書体の読み込み先。プレビューで同じ書体を出すのに使う */
+  fontLinks: string[];
   sheetCount: number;
   /** 抽出した日時。保存時に入れる */
   takenAt: string | null;

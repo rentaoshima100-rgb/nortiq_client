@@ -35,9 +35,14 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const headers: Record<string, string> = {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'private, no-store',
-    // 生成物をそのまま開くので、外への通信と実行を止めておく
+    // 生成物をそのまま開くので、外への通信と実行を止めておく。
+    // 書体だけは通す。サイトと同じ書体で見ないと、案の評価そのものを誤る
+    // （既定フォントで描かれた明朝のデザインは、別物として目に映る）。
     'Content-Security-Policy':
-      "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:",
+      "default-src 'none'; " +
+      "style-src 'unsafe-inline' https://fonts.googleapis.com; " +
+      'font-src data: https://fonts.gstatic.com; ' +
+      'img-src data:',
     'X-Content-Type-Options': 'nosniff',
   };
 

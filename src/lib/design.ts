@@ -61,9 +61,11 @@ const VARIANT_PROMPTS = [1, 2, 3].map((n) => ({
 const SYSTEM = `あなたは制作会社のデザイナーです。納品済みサイトに対する修正依頼を受け、社内が検討するための参考デザイン案を1案つくります。
 
 出力する HTML の決まり:
-- 自己完結した断片にしてください。<style> をその中に含め、外部のCSS・フォント・画像・スクリプトは一切参照しないこと（読み込めない環境で見ます）
+- <style> は断片の中に含めてください。外部の CSS・画像・スクリプトは参照しないこと（読み込めない環境で見ます）
+- **下の「カスタムプロパティ」に載っている変数は、プレビュー側で :root に定義済みです。「var(--brand)」のように参照してください。** 載っていない変数を参照すると、その指定は丸ごと落ちて崩れます
+- **書体も同じ CDN から読み込み済みです。** font-family には下の「使われている font-family」の並びをそのまま書いてください（「var(--font-serif)」のように変数がある場合はそちらを使う）
 - <!DOCTYPE> や <html>・<head>・<body> は書かないこと。中身だけを書いてください
-- **簡潔に書いてください。CSS 込みで 200行を目安に。** 同じ形の要素が繰り返すところは、繰り返しごとに書き直さずクラスでまとめること
+- 同じ形の要素が繰り返すところは、繰り返しごとに書き直さずクラスでまとめてください
 - クラス名は nqd- で始めてください。プレビュー環境の他の要素と衝突させないためです
 - 画像が必要な箇所は、実際の画像を参照せず、背景色とキャプションを置いたプレースホルダにしてください
 - 日本語の文言は元のものを保ってください。依頼が文言の変更を求めている場合だけ変えます
@@ -347,11 +349,65 @@ async function generateOne(
     return { variant: v.variant, ok: false, reason: e instanceof Error ? e.message : String(e) };
   }
 
+  /*
+   * 修復パス
+   *
+   * ここで見るのは好みではなく、**開いたときに確実に崩れるもの**だけ。
+   * 実測で、未定義の変数を参照して色も書体も全部落ちた案が3つ中2つあった。
+   * 出来たものをそのまま出すと、社内は「案の質が悪い」と受け取ってしまう。
+   * 中身は悪くないのに見た目だけ壊れている、という取り違えを防ぐ。
+   */
+  const problems = lintFragment(parsed.html, tokens);
+  if (problems.length) {
+    try {
+      const fix = client.messages.stream({
+        model: MODEL,
+        max_tokens: 12000,
+        system: SYSTEM,
+        output_config: {
+          effort: 'low', // 直す箇所は指摘済み。考え直させる必要はない
+          format: { type: 'json_schema', schema: SCHEMA as unknown as Record<string, unknown> },
+        },
+        messages: [
+          { role: 'user', content: [{ type: 'text', text: body }] },
+          { role: 'assistant', content: [{ type: 'text', text: JSON.stringify(parsed) }] },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text:
+                  'この案をプレビューに載せる前の検査で、次の問題が見つかりました。\n\n' +
+                  problems.map((p, i) => `${i + 1}. ${p}`).join('\n') +
+                  '\n\n**構成は変えないでください。** 上の問題だけを直した同じ案を、' +
+                  '同じ形式でもう一度出してください。',
+              },
+            ],
+          },
+        ],
+      });
+      const fixed = await fix.finalMessage();
+      const t2 = fixed.content.find((b) => b.type === 'text');
+      if (t2 && t2.type === 'text') {
+        const reparsed = JSON.parse(t2.text) as typeof parsed;
+        // 直った場合だけ差し替える。悪化させない
+        if (lintFragment(reparsed.html, tokens).length < problems.length) parsed = reparsed;
+      }
+      usage = {
+        ...usage,
+        input_tokens: usage.input_tokens + fixed.usage.input_tokens,
+        output_tokens: usage.output_tokens + fixed.usage.output_tokens,
+      };
+    } catch {
+      // 直せなくても、元の案は出す。空にするよりまし
+    }
+  }
+
   const htmlPath = `${ctx.id}/${batch}/${v.variant}.html`;
   const db = adminDb();
   const { error: upErr } = await db.storage
     .from(DESIGNS_BUCKET)
-    .upload(htmlPath, Buffer.from(wrapHtml(parsed.title, parsed.html), 'utf8'), {
+    .upload(htmlPath, Buffer.from(wrapHtml(parsed.title, parsed.html, tokens), 'utf8'), {
       contentType: 'text/html; charset=utf-8',
       upsert: true,
     });
@@ -385,17 +441,37 @@ async function generateOne(
   };
 }
 
-/** 断片を、そのまま開けるページに包む */
-function wrapHtml(title: string, fragment: string): string {
+/**
+ * 断片を、そのまま開けるページに包む
+ *
+ * ここでサイトのトークンと書体を注ぐのが要点。
+ * 以前は断片だけを白紙に置いていたので、
+ *   - var(--brand) などサイトの変数が**未定義になり全部落ちる**
+ *   - 書体が読み込まれず既定のフォントで描かれる
+ * 案そのものは正しくても、見た目が別物になっていた。
+ */
+function wrapHtml(title: string, fragment: string, tokens: SiteTokens | null): string {
+  const links = (tokens?.fontLinks ?? [])
+    .filter((h) => /fonts\.googleapis\.com\/css|\.woff2?(\?|$)/i.test(h))
+    .map((h) => `<link rel="stylesheet" href="${escapeHtml(h)}">`)
+    .join('\n');
+
+  const vars = (tokens?.vars ?? []).map((v) => `  ${v.name}: ${v.value};`).join('\n');
+
   return `<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
+${links}
 <style>
+  /* 本番サイトから抜いたトークン。案が var() で参照できるようにする */
+:root {
+${vars}
+}
   *, *::before, *::after { box-sizing: border-box; }
-  body { margin: 0; }
+  body { margin: 0; background: var(--bg, #fff); color: var(--ink, #17222e); }
 </style>
 </head>
 <body>
@@ -403,6 +479,53 @@ ${fragment}
 </body>
 </html>
 `;
+}
+
+/**
+ * 生成物の機械チェック
+ *
+ * モデルに直させる前に、**確実に壊れているもの**だけを挙げる。
+ * ここで挙がるのは好みの話ではなく、開いたときに見た目が崩れるもの。
+ */
+export function lintFragment(html: string, tokens: SiteTokens | null): string[] {
+  const problems: string[] = [];
+  const defined = new Set((tokens?.vars ?? []).map((v) => v.name));
+
+  // 断片の中で定義している変数も使ってよい
+  for (const m of html.matchAll(/(--[\w-]+)\s*:/g)) defined.add(m[1]);
+
+  const missing = new Set<string>();
+  for (const m of html.matchAll(/var\(\s*(--[\w-]+)\s*(,)?/g)) {
+    // 既定値付き var(--x, #fff) は落ちても崩れないので見逃す
+    if (!defined.has(m[1]) && !m[2]) missing.add(m[1]);
+  }
+  if (missing.size) {
+    problems.push(
+      `未定義の変数を参照しています: ${[...missing].join(' ')}。` +
+        'この変数はプレビューに存在しないので、指定した色や書体が全部落ちます。' +
+        '上の一覧にある変数だけを使うか、実際の値を直接書いてください。',
+    );
+  }
+
+  const external = [...html.matchAll(/(?:src|href)\s*=\s*["'](https?:\/\/[^"']+)["']/gi)]
+    .map((m) => m[1])
+    .filter((u) => !/fonts\.googleapis\.com|fonts\.gstatic\.com/i.test(u));
+  if (external.length) {
+    problems.push(
+      `外部リソースを参照しています: ${external.slice(0, 3).join(' ')}。` +
+        '読み込めない環境で見るので、消すかプレースホルダに置き換えてください。',
+    );
+  }
+
+  if (/<script/i.test(html)) {
+    problems.push('<script> が入っています。プレビューでは実行されないので、消してください。');
+  }
+
+  if (html.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, '').trim().length < 40) {
+    problems.push('本文がほとんどありません。中身のある案になっていません。');
+  }
+
+  return problems;
 }
 
 function escapeHtml(s: string): string {

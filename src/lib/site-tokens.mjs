@@ -87,26 +87,40 @@ export async function fetchSiteTokens(siteUrl) {
   );
   for (const s of sheets) if (s) css.push(s);
 
+  // 書体の読み込みタグ。プレビューで同じ書体を出すのに要る。
+  // これが無いと、案は既定のフォントで描かれて別物に見える。
+  const fontLinks = [];
+  for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
+    const href = m[0].match(/href\s*=\s*["']([^"']+)["']/i)?.[1] ?? '';
+    if (/fonts\.googleapis\.com|fonts\.gstatic\.com|\.woff2?(\?|$)/i.test(href)) {
+      fontLinks.push(href);
+    }
+  }
+
   if (!css.length) return null;
   const all = css.join('\n');
 
-  // ── カスタムプロパティ（色・書体・余白に関わるものだけ）
+  // ── カスタムプロパティ
+  //
+  // 名前で絞ると取りこぼす。実測: --ink / --rule / --stone のような
+  // 中核の色が「色っぽい名前ではない」という理由だけで落ちていた。
+  // **値の形**で判定する。色・寸法・書体スタックなら拾う。
+  const looksUseful = (v) =>
+    /^#[0-9a-f]{3,8}$/i.test(v) ||
+    /^(rgb|hsl)a?\(/i.test(v) ||
+    /^[\d.]+(px|rem|em|%)$/.test(v) ||
+    /,/.test(v) || // 書体スタック / shadow
+    /^(serif|sans-serif|monospace)$/.test(v);
+
   const vars = [];
   const seenVar = new Set();
-  for (const m of all.matchAll(/(--[\w-]+)\s*:\s*([^;{}]{1,80})[;}]/g)) {
+  for (const m of all.matchAll(/(--[\w-]+)\s*:\s*([^;{}]{1,120})[;}]/g)) {
     const name = m[1];
     const value = m[2].trim();
-    if (seenVar.has(name)) continue;
-    if (
-      !/color|bg|background|font|text|space|gap|radius|shadow|border|accent|brand|primary|main|sub/i.test(
-        name,
-      )
-    ) {
-      continue;
-    }
+    if (seenVar.has(name) || !looksUseful(value)) continue;
     seenVar.add(name);
     vars.push({ name, value });
-    if (vars.length >= 40) break;
+    if (vars.length >= 60) break;
   }
 
   // ── 書体
@@ -171,6 +185,7 @@ export async function fetchSiteTokens(siteUrl) {
     fontSizes: rank(sizeCounts, 10),
     spacings: rank(spaceCounts, 10),
     radii: rank(radiusCounts, 4),
+    fontLinks: [...new Set(fontLinks)].slice(0, 6),
     sheetCount: css.length,
     takenAt: null, // 保存時に呼び出し側が入れる
   };
@@ -185,7 +200,7 @@ export function tokensText(t) {
 
   if (t.vars.length) {
     lines.push('');
-    lines.push('## カスタムプロパティ（これがあるなら var() で参照すること）');
+    lines.push('## カスタムプロパティ（プレビュー側で :root に定義済み。var() でそのまま参照できる）');
     for (const v of t.vars) lines.push(`${v.name}: ${v.value}`);
   }
   if (t.webFonts.length) {
