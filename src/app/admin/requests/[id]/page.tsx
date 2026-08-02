@@ -248,8 +248,10 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               >
                 {shot?.match_tier}
               </span>
-              {shot?.match_tier !== 'confirmed' &&
-                '（nq-id が無いため段2以降で当てています。注入を入れると confirmed に上がります）'}
+              {shot?.match_tier === 'provisional' &&
+                '（本文・画像の src・リンクの行き先・クラス込みの経路のいずれかで一つに決めています。nq-id を注入すると confirmed に上がります）'}
+              {(shot?.match_tier === 'weak' || shot?.match_tier === 'stale') &&
+                '（決め手が無く、経路と座標で当てています。別の要素を指している可能性があります）'}
               {shots.length > 2 && ` ／ 撮影 ${shots.length} 回のうち直近2回を表示`}
             </p>
           </div>

@@ -84,10 +84,20 @@ export function steps(p: OnboardingInput, c: SiteCheck): Step[] {
   const keyMatches = c.snippetKey === p.snippetKey;
   return [
     {
+      key: 'repo',
+      title: 'GitHub App を入れる',
+      done: !!(p.repoOwner && p.repoName),
+      why: 'これが済んでいれば、次のスニペットはこちらから入れられます。エンジニアの作業はここで終わります。',
+      note:
+        p.repoOwner && p.repoName
+          ? `${p.repoOwner}/${p.repoName}${p.assetSwapEnabled ? '（画像差し替えも有効）' : ''}`
+          : undefined,
+    },
+    {
       key: 'snippet',
       title: 'スニペットを置く',
       done: c.hasSnippet && keyMatches,
-      why: 'これが無いとクライアントは依頼を出せません。ここだけで運用は始められます。',
+      why: 'これが無いとクライアントは依頼を出せません。必須はここだけで、以降は精度の話です。',
       note:
         c.hasSnippet && !keyMatches
           ? `スニペットはありますが data-project が "${c.snippetKey ?? '不明'}" になっています。この案件は "${p.snippetKey}" です。`
@@ -97,25 +107,15 @@ export function steps(p: OnboardingInput, c: SiteCheck): Step[] {
       key: 'nqid',
       title: 'data-nq-id を注入する',
       done: c.nqIdCount > 0,
-      why: 'ページを直したときに、依頼のピンが正しい要素に付き続けます。実測で的中率が 0% → 74% に上がりました。',
+      why: '無くても動きます（実測で段3 weak は 0〜4%）。入れると段1 confirmed が 74% になり、ページを直しても依頼のピンが同じ要素に付き続けます。ビルド工程のあるサイト向けです。',
       note: c.nqIdCount > 0 ? `${c.nqIdCount} 箇所に入っています。` : undefined,
     },
     {
       key: 'sha',
       title: 'ビルド SHA を埋める',
       done: !!c.siteSha,
-      why: '「どのビルドに対する依頼か」が確定します。撮影と差分の判定に要ります。',
+      why: '「どのビルドに対する依頼か」が確定します。撮影と差分の判定に要ります。ビルド工程が無いサイトでは埋められないので、飛ばして構いません。',
       note: c.siteSha ? `現在: ${c.siteSha.slice(0, 12)}` : undefined,
-    },
-    {
-      key: 'repo',
-      title: 'GitHub App を入れる',
-      done: !!(p.repoOwner && p.repoName),
-      why: '画像の差し替えを PR で出せます。使わないなら不要です。',
-      note:
-        p.repoOwner && p.repoName
-          ? `${p.repoOwner}/${p.repoName}${p.assetSwapEnabled ? '（差し替え有効）' : '（差し替えは無効のまま）'}`
-          : undefined,
     },
   ];
 }
@@ -159,12 +159,49 @@ export function buildPrompt(p: OnboardingInput, c: SiteCheck): string {
   L.push('## やること');
   L.push('');
   L.push(
-    '下の作業は独立しています。**上から順に効果が増えます。1つ目だけでも運用は始められる**ので、' +
-      '手が回らなければそこで止めて構いません。止めた場合はどこまでやったかを共有してください。',
+    '**必須はスニペット1行だけ**です。それ以降は精度と自動化の話で、やらなくても運用は始められます。' +
+      '手が回らなければ途中で止めて構いません。止めた場合はどこまでやったかを共有してください。',
   );
   L.push('');
+  if (todo.some((s) => s.key === 'repo')) {
+    L.push(
+      '**GitHub App を入れていただければ、次のスニペットはこちらで入れます。** ' +
+        'PR を1本お送りするので、中身を見てマージするだけです。エンジニアの作業はそこで終わります。',
+    );
+    L.push('');
+  }
 
   let n = 0;
+
+  if (todo.some((s) => s.key === 'repo')) {
+    n++;
+    L.push(`### ${n}. GitHub App を入れる（5分・これだけで以降は不要になります）`);
+    L.push('');
+    L.push(
+      '社内が用意した GitHub App を対象リポジトリにインストールしてください。' +
+        '入れていただくと、下の「スニペットを置く」をこちらで行い、**PR としてお送りします**。' +
+        '自動マージはしません。例外なくです。本番に出るには必ず人間がマージする必要があります。' +
+        'クライアントが画像の差し替えを依頼したときも、同じく PR でお送りします。',
+    );
+    L.push('');
+    L.push('必要な権限は2つだけです。');
+    L.push('');
+    L.push('| 権限 | レベル | 用途 |');
+    L.push('|---|---|---|');
+    L.push('| Contents | Read and write | ブランチ作成・コミット |');
+    L.push('| Pull requests | Read and write | PR 作成 |');
+    L.push('');
+    L.push('インストール後、**リポジトリのオーナー名とリポジトリ名を社内に伝えてください。**');
+    L.push('');
+    L.push('書き込むのはスニペット1行と、依頼のあった画像だけです。次は触りません。');
+    L.push('');
+    L.push('```');
+    L.push('禁止: package.json  各種ロックファイル  .github/  .env*  *.config.*  tsconfig*.json');
+    L.push('```');
+    L.push('');
+    L.push('App を入れない場合は、下の作業を手で行ってください。');
+    L.push('');
+  }
 
   if (todo.some((s) => s.key === 'snippet')) {
     n++;
@@ -194,13 +231,18 @@ export function buildPrompt(p: OnboardingInput, c: SiteCheck): string {
 
   if (todo.some((s) => s.key === 'nqid')) {
     n++;
-    L.push(`### ${n}. data-nq-id を注入する（30分）`);
+    L.push(`### ${n}. data-nq-id を注入する（任意・30分・ビルド工程のあるサイト向け）`);
     L.push('');
     L.push(
-      '**なぜ必要か:** 依頼のピンは「ページのどの要素か」を覚えています。これが無いと CSS セレクタと' +
-        '文字列で探すことになり、ページを直すと簡単にずれます。要素を1つ挿しただけで ' +
-        '`div:nth-child(3)` は別物を指します。`data-nq-id` はソース上の位置から作った ID なので、' +
-        '見た目や並びを直しても変わりません。**実測で的中率が 0% → 74% に上がりました。**',
+      '**やらなくても動きます。** 依頼のピンは「ページのどの要素か」を覚えていますが、' +
+        '`data-nq-id` が無い場合は本文・画像の `src`・リンクの行き先・クラス込みの経路を' +
+        '組み合わせて特定します（実測で、注入なしのサイトでも当てられなかった要素は 0〜4%）。',
+    );
+    L.push('');
+    L.push(
+      '**入れると何が変わるか:** ソース上の位置から作った ID なので、見た目や並びを直しても変わりません。' +
+        '実測で段1 confirmed が 74% になります。文言を大きく書き換えたときや、同じ見た目の要素が' +
+        '並ぶページで効きます。**長く運用する案件だけ入れてください。**',
     );
     L.push('');
     L.push('社内から `tools/nq-inject/` 一式を受け取り、リポジトリ直下に置いてください。');
@@ -240,11 +282,17 @@ export function buildPrompt(p: OnboardingInput, c: SiteCheck): string {
 
   if (todo.some((s) => s.key === 'sha')) {
     n++;
-    L.push(`### ${n}. ビルド SHA を埋める（15分）`);
+    L.push(`### ${n}. ビルド SHA を埋める（任意・15分・ビルド工程のあるサイトだけ）`);
     L.push('');
     L.push(
-      '**なぜ必要か:** 依頼が「どのビルドに対して出されたか」が分からないと、直したあとに撮り比べても' +
+      '**なぜあると良いか:** 依頼が「どのビルドに対して出されたか」が分からないと、直したあとに撮り比べても' +
         '**直した結果なのか、その間に別の更新が入ったのか**が区別できません。',
+    );
+    L.push('');
+    L.push(
+      '**ビルド工程が無いサイトでは飛ばしてください。** コミット SHA を自分自身に埋めることはできません' +
+        '（埋めるとその時点で SHA が変わります）。`content="dev"` のようなプレースホルダを置くくらいなら、' +
+        '行ごと無いほうが良い状態です。',
     );
     L.push('');
     L.push('`<head>` に次の meta を置き、ビルド時に実際の commit SHA を埋めてください。');
@@ -269,33 +317,6 @@ export function buildPrompt(p: OnboardingInput, c: SiteCheck): string {
         '`No Output Directory named "public" found` でビルドが落ちます。ルートをそのまま配信している' +
         '静的サイトなら Output Directory に `.` を明示してください（Override ON）。',
     );
-    L.push('');
-  }
-
-  if (todo.some((s) => s.key === 'repo')) {
-    n++;
-    L.push(`### ${n}. GitHub App を入れる（15分・画像差し替えを使う場合だけ）`);
-    L.push('');
-    L.push(
-      'クライアントが画像にピンを打って差し替え用の画像を添付すると、ブランチを切って差し替え、PR を作ります。' +
-        '**自動マージはしません。例外なくです。** PR が作られるだけで、本番に出るには人間がマージする必要があります。',
-    );
-    L.push('');
-    L.push('社内が用意した GitHub App を対象リポジトリにインストールしてください。必要な権限は2つだけです。');
-    L.push('');
-    L.push('| 権限 | レベル | 用途 |');
-    L.push('|---|---|---|');
-    L.push('| Contents | Read and write | ブランチ作成・コミット |');
-    L.push('| Pull requests | Read and write | PR 作成 |');
-    L.push('');
-    L.push('インストール後、**リポジトリのオーナー名とリポジトリ名を社内に伝えてください。**');
-    L.push('');
-    L.push('書き込めるのは次のパスだけで、それ以外は拒否されます。');
-    L.push('');
-    L.push('```');
-    L.push('許可: src/  app/  components/  styles/  assets/  public/  index.html');
-    L.push('禁止: package.json  各種ロックファイル  .github/  .env*  *.config.*  tsconfig*.json');
-    L.push('```');
     L.push('');
   }
 
