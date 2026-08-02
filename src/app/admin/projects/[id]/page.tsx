@@ -13,6 +13,7 @@ import {
 } from '@/lib/rounds';
 import { adminDb } from '@/lib/supabase/admin';
 import type { SiteTokens } from '@/lib/site-tokens-store';
+import { Onboarding } from './onboarding-ui';
 import type { Locator } from '@/lib/types';
 import {
   CATEGORY_OPTIONS,
@@ -195,12 +196,19 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="mb-1 text-sm font-bold">埋め込みスニペット</h2>
-        <p className="mb-3 text-xs text-slate-500">
-          サイトの &lt;/body&gt; の直前に置きます。招待トークンを持たない訪問者には
-          何も描画されないため、本番に常設して構いません。
+        <h2 className="text-sm font-bold">サイト側の導入</h2>
+        <p className="mb-4 mt-1 text-xs leading-relaxed text-slate-500">
+          本番サイトを見て、済んでいる作業を判定します。
+          残っているぶんだけを書いた指示文が出るので、そのままエンジニアに渡してください
+          （AI コーディングエージェントに貼っても動く形にしてあります）。
         </p>
-        <SnippetBox snippet={snippet} />
+
+        <Onboarding projectId={project.id} hasSiteUrl={!!project.site_url} />
+
+        <div className="mt-6 border-t border-slate-200 pt-4">
+          <h3 className="mb-2 text-xs font-bold text-slate-500">埋め込みスニペット</h3>
+          <SnippetBox snippet={snippet} />
+        </div>
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
