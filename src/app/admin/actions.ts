@@ -7,6 +7,7 @@ import { newToken, sha256hex } from '@/lib/hash';
 import { notifyOnce, publishedMessage } from '@/lib/line';
 import { advanceRound, openRound } from '@/lib/rounds';
 import { refreshProjectTokens } from '@/lib/site-tokens-store';
+import { runSnippetInstall } from '@/lib/snippet-install-run';
 import { adminDb } from '@/lib/supabase/admin';
 import { requireStaff, staffActor } from '@/lib/staff';
 import type { ProjectRow } from '@/lib/types';
@@ -28,9 +29,19 @@ export async function createProject(
   const siteUrl = String(formData.get('site_url') || '').trim();
   const snippetKey = String(formData.get('snippet_key') || '').trim();
   const stack = String(formData.get('stack') || 'static');
+  // 「owner/name」。空なら従来どおり、リポジトリ無しで案件だけ作る。
+  const repoFull = String(formData.get('repo') || '').trim();
+  const directCommit = formData.get('allow_direct_commit') === 'on';
 
   if (!name || !clientName || !siteUrl || !snippetKey) {
     return { error: 'すべての項目を入力してください' };
+  }
+  let repoOwner: string | null = null;
+  let repoName: string | null = null;
+  if (repoFull) {
+    const m = /^([^/\s]+)\/([^/\s]+)$/.exec(repoFull);
+    if (!m) return { error: 'リポジトリは owner/name の形式で指定してください' };
+    [, repoOwner, repoName] = m;
   }
   let origin: string;
   try {
@@ -54,6 +65,9 @@ export async function createProject(
       site_url: origin,
       snippet_key: snippetKey,
       stack,
+      repo_owner: repoOwner,
+      repo_name: repoName,
+      allow_direct_commit: directCommit,
     })
     .select('id')
     .single();
@@ -77,6 +91,30 @@ export async function createProject(
   // 参考デザインを作るときの色と書体の選択肢をここで閉じる。
   // 失敗しても登録は止めない（案件設定から取り直せる）
   await refreshProjectTokens(data.id, origin);
+
+  // リポジトリが選ばれているなら、その場でスニペットを入れる。
+  // ここが「案件を作る＝サイト側の準備も終わる」の実体。
+  // 失敗しても案件の作成は止めない。案件ページから何度でもやり直せるし、
+  // 止めてしまうと「作れなかったのか入らなかったのか」が分からなくなる。
+  if (repoOwner && repoName) {
+    try {
+      const out = await runSnippetInstall(
+        {
+          id: data.id,
+          snippet_key: snippetKey,
+          repo_owner: repoOwner,
+          repo_name: repoName,
+          default_branch: null,
+          gh_installation_id: null,
+          allow_direct_commit: directCommit,
+        },
+        staffActor(user),
+      );
+      if (!out.ok) console.warn('[createProject] スニペット投入を見送りました:', out.message);
+    } catch (e) {
+      console.error('[createProject] スニペット投入に失敗しました', e);
+    }
+  }
 
   redirect(`/admin/projects/${data.id}`);
 }

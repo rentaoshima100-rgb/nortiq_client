@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { SiteCheck, Step } from '@/lib/onboarding';
+import { SnippetInstall } from './snippet-install-ui';
 
 interface Result {
   check: SiteCheck;
@@ -55,6 +56,8 @@ export function Onboarding({ projectId, hasSiteUrl }: { projectId: string; hasSi
         {!hasSiteUrl && <span className="text-sm text-amber-700">サイト URL が未設定です</span>}
         {err && <span className="text-sm text-amber-700">{err}</span>}
       </div>
+
+      <SnippetInstall projectId={projectId} />
 
       {res && (
         <>

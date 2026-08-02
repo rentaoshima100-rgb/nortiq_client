@@ -225,5 +225,35 @@ export function createGitHub(appId, privateKeyPem) {
         body: { body },
       });
     },
+
+    /**
+     * ファイル一覧。スニペットの挿入先を決めるのに使う。
+     * contents API をディレクトリごとに叩くと往復が増えるので、木を1回で取る。
+     */
+    async getTree(installationId, owner, repo, ref) {
+      const token = await installationToken(installationId);
+      const res = await gh(
+        `/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`,
+        { token },
+      );
+      return { truncated: !!res.truncated, entries: res.tree ?? [] };
+    },
+
+    /**
+     * そのコミットのデプロイ。GitHub Pages も、GitHub 連携の Vercel もここに出る。
+     * 「リポジトリを編集した」と「本番に出た」は別物で、間を待たずに招待を送ると
+     * クライアントは何も出ないページを開くことになる。
+     */
+    async deployments(installationId, owner, repo, sha) {
+      const token = await installationToken(installationId);
+      return gh(`/repos/${owner}/${repo}/deployments?sha=${encodeURIComponent(sha)}`, { token });
+    },
+
+    async deploymentStatuses(installationId, owner, repo, deploymentId) {
+      const token = await installationToken(installationId);
+      return gh(`/repos/${owner}/${repo}/deployments/${deploymentId}/statuses?per_page=10`, {
+        token,
+      });
+    },
   };
 }

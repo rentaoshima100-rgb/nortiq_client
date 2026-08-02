@@ -11,7 +11,7 @@
  *   3. 品質の露出 — 出来の悪い差分を見せた時点で信頼が失われる
  */
 import { supa, supaKey, supaUrl } from './supabase.mjs';
-import { appIdFromEnv, createGitHub, installationIdFromEnv, privateKeyFromEnv } from './github.mjs';
+import { appIdFromEnv, createGitHub, installationIdFromEnv, privateKeyFromEnv } from '../src/lib/github.mjs';
 import { planAssetSwap, countReferences } from './asset-swap.mjs';
 import { ensureRoundBranch, applyPatches, ensureRoundPr } from './patch.mjs';
 
