@@ -251,7 +251,7 @@ export async function research(
     max_tokens: 12000,
     system: RESEARCH_SYSTEM,
     output_config: { effort: 'medium' },
-    tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 6 }],
+    tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 14 }],
     messages: [
       {
         role: 'user',

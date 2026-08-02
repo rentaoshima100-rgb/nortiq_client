@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export interface ProposalView {
   id: string;
@@ -134,9 +134,77 @@ export function GenerateButton({ requestId, again }: { requestId: string; again:
   );
 }
 
-export function ProposalCard({ p }: { p: ProposalView }) {
-  const [open, setOpen] = useState(false);
+const WIDTHS = [
+  { label: 'PC', w: 1440, h: 900 },
+  { label: 'タブレット', w: 768, h: 900 },
+  { label: 'スマホ', w: 390, h: 760 },
+] as const;
 
+/**
+ * 案は 1440px 前提のグリッドで作られている。
+ * 狭い枠にそのまま入れると崩れて見えて、案そのものの評価を誤る。
+ * **実寸で描いて縮小して見せる**。
+ */
+function Preview({ id, title }: { id: string; title: string }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.4);
+  const [size, setSize] = useState<(typeof WIDTHS)[number]>(WIDTHS[0]);
+
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const fit = () => setScale(Math.min(1, el.clientWidth / size.w));
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [size]);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-2">
+        {WIDTHS.map((wd) => (
+          <button
+            key={wd.label}
+            onClick={() => setSize(wd)}
+            className={
+              wd.label === size.label
+                ? 'rounded bg-slate-900 px-2 py-1 text-xs text-white'
+                : 'rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100'
+            }
+          >
+            {wd.label}
+          </button>
+        ))}
+        <span className="ml-auto text-xs text-slate-400">
+          {size.w}px 幅で描画 ／ {Math.round(scale * 100)}% 表示
+        </span>
+      </div>
+      <div
+        ref={box}
+        className="overflow-hidden bg-slate-100"
+        style={{ height: size.h * scale }}
+      >
+        <iframe
+          src={`/api/admin/design/${id}`}
+          title={title}
+          sandbox=""
+          scrolling="no"
+          style={{
+            width: size.w,
+            height: size.h,
+            border: 0,
+            background: '#fff',
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function ProposalCard({ p }: { p: ProposalView }) {
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200">
       <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
@@ -149,21 +217,16 @@ export function ProposalCard({ p }: { p: ProposalView }) {
         <p className="mt-2 text-sm leading-relaxed text-slate-600">{p.rationale}</p>
       </div>
 
-      {open && (
-        <iframe
-          src={`/api/admin/design/${p.id}`}
-          title={p.title}
-          sandbox=""
-          className="h-[520px] w-full border-0 bg-white"
-        />
-      )}
+      <Preview id={p.id} title={p.title} />
 
-      <div className="flex gap-4 px-4 py-3 text-sm">
-        <button onClick={() => setOpen(!open)} className="text-slate-700 underline">
-          {open ? '閉じる' : 'プレビュー'}
-        </button>
-        <a href={`/api/admin/design/${p.id}`} target="_blank" rel="noreferrer" className="text-slate-700 underline">
-          別タブで開く
+      <div className="flex gap-4 border-t border-slate-200 px-4 py-3 text-sm">
+        <a
+          href={`/api/admin/design/${p.id}`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-slate-700 underline"
+        >
+          実寸で開く
         </a>
         <a href={`/api/admin/design/${p.id}?dl=1`} className="text-slate-700 underline">
           ダウンロード
