@@ -219,7 +219,7 @@ export function ProposalCard({ p }: { p: ProposalView }) {
 
       <Preview id={p.id} title={p.title} />
 
-      <div className="flex gap-4 border-t border-slate-200 px-4 py-3 text-sm">
+      <div className="flex items-center gap-4 border-t border-slate-200 px-4 py-3 text-sm">
         <a
           href={`/api/admin/design/${p.id}`}
           target="_blank"
@@ -231,7 +231,133 @@ export function ProposalCard({ p }: { p: ProposalView }) {
         <a href={`/api/admin/design/${p.id}?dl=1`} className="text-slate-700 underline">
           ダウンロード
         </a>
+        <div className="ml-auto">
+          <Implement proposalId={p.id} />
+        </div>
       </div>
+    </div>
+  );
+}
+
+
+interface Plan {
+  file: string;
+  oldStr: string;
+  newStr: string;
+  summary: string;
+  notes: string[];
+}
+
+/**
+ * 採用した案をリポジトリに落とす。
+ * **必ず2段**。下書きで差分を見せ、社内が確かめてから PR を出す。
+ * 押した瞬間にリポジトリが変わる作りにはしない。
+ */
+function Implement({ proposalId }: { proposalId: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<'plan' | 'pr' | null>(null);
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [pr, setPr] = useState<string | null>(null);
+
+  async function call(confirm: boolean) {
+    setBusy(confirm ? 'pr' : 'plan');
+    setErr(null);
+    try {
+      const r = await fetch('/api/admin/design/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proposalId, confirm }),
+      });
+      const text = await r.text();
+      let j: Record<string, unknown>;
+      try {
+        j = JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        setErr(r.status === 504 ? '時間内に終わりませんでした（504）' : `応答が不正です（${r.status}）`);
+        return;
+      }
+      if (!j.ok) {
+        setErr(String(j.message ?? j.error ?? '失敗しました'));
+        return;
+      }
+      setPlan(j.plan as Plan);
+      if (j.applied) {
+        setPr(String(j.prUrl));
+        router.refresh();
+      } else {
+        setMsg(String(j.message ?? ''));
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '通信に失敗しました');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (pr) {
+    return (
+      <a href={pr} target="_blank" rel="noreferrer" className="text-sm font-medium text-green-700 underline">
+        PR を出しました → 開く
+      </a>
+    );
+  }
+
+  return (
+    <div className="text-right">
+      <div className="flex items-center justify-end gap-3">
+        {err && <span className="text-xs text-amber-700">{err}</span>}
+        {!plan ? (
+          <button
+            onClick={() => call(false)}
+            disabled={busy !== null}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+          >
+            {busy === 'plan' ? 'ソースを読んでいます…' : 'この案で実装する'}
+          </button>
+        ) : (
+          <button
+            onClick={() => call(true)}
+            disabled={busy !== null}
+            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+          >
+            {busy === 'pr' ? 'PR を作っています…' : 'PR を出す'}
+          </button>
+        )}
+      </div>
+
+      {plan && (
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-left">
+          <p className="text-xs text-slate-600">
+            <code className="text-[11px]">{plan.file}</code> — {plan.summary}
+          </p>
+          {msg && <p className="mt-1 text-xs text-slate-500">{msg}</p>}
+          {plan.notes.length > 0 && (
+            <ul className="mt-2 space-y-0.5">
+              {plan.notes.map((n, i) => (
+                <li key={i} className="text-xs text-amber-700">
+                  ・{n}
+                </li>
+              ))}
+            </ul>
+          )}
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs text-slate-500">差分を見る</summary>
+            <div className="mt-2 grid gap-2 md:grid-cols-2">
+              <pre className="max-h-64 overflow-auto rounded bg-red-50 p-2 text-[11px] leading-relaxed text-red-900">
+                {plan.oldStr}
+              </pre>
+              <pre className="max-h-64 overflow-auto rounded bg-green-50 p-2 text-[11px] leading-relaxed text-green-900">
+                {plan.newStr}
+              </pre>
+            </div>
+          </details>
+          <p className="mt-2 text-xs text-slate-400">
+            PR を出すまでリポジトリは変わりません。自動マージはしません。
+          </p>
+        </div>
+      )}
     </div>
   );
 }
