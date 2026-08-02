@@ -615,9 +615,17 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                             </a>
                           )}
                           <div className="min-w-0">
-                            <Link href={`/admin/requests/${r.id}`} className="hover:underline">
+                            {/* ここが依頼ページへの入口。ただのテキストに見えると
+                                誰も押さないので、リンクだと分かる見た目にする */}
+                            <Link
+                              href={`/admin/requests/${r.id}`}
+                              className="font-medium text-blue-700 underline decoration-blue-200 underline-offset-2 hover:decoration-blue-500"
+                            >
                               {r.body.length > 60 ? r.body.slice(0, 60) + '…' : r.body}
                             </Link>
+                            <span className="ml-1 whitespace-nowrap text-xs text-blue-700">
+                              詳細・参考デザイン →
+                            </span>
                             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
                               <span>{fmt(r.created_at)}</span>
                               {att && (
