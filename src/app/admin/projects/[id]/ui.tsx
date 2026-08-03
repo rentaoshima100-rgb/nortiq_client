@@ -325,9 +325,14 @@ export function ProjectSettings({
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" name="ai_enabled" defaultChecked={project.ai_enabled} className="mt-1" />
           <span>
-            <b>文言パッチを有効にする（Phase 3b）</b>
+            <b>文言・文字まわりを自動で反映する</b>
+            <span className="block text-xs text-slate-500">
+              「この一文を直して」「ここの文字を大きく」を、人手を介さずリポジトリに当てて
+              PR を出します。1時間ごとに動きます。<b>自動マージはしません。</b>
+            </span>
             <span className="block text-xs text-amber-700">
-              LLM を使います。<b>ZDR の適用を書面で確認するまで有効にしないこと</b>（13.3）
+              対象は文言と文字の大小・太さ・行間・字間・色だけ。要素の増減・並べ替え・
+              不具合は人が見ます。判断に迷った依頼も人に回します。
             </span>
           </span>
         </label>

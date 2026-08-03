@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { errorJson, json } from '@/lib/http';
 import { freezeSoonMessage, notifyOnce, remindMessage } from '@/lib/line';
 import { daysUntil, runDueTransitions } from '@/lib/rounds';
+import { runAutoText } from '@/lib/auto-text';
 import { adminDb } from '@/lib/supabase/admin';
 
 interface TickProject {
@@ -83,6 +84,8 @@ export const dynamic = 'force-dynamic';
  * ディスパッチ（素材差し替え）はここには置かない。sharp と GitHub 操作が要るため、
  * ワーカー側の tick.mjs が持つ。
  */
+export const maxDuration = 300;
+
 export async function GET(req: Request) {
   // Vercel Cron は Authorization: Bearer $CRON_SECRET を付けてくる
   const secret = process.env.CRON_SECRET;
@@ -97,12 +100,29 @@ export async function GET(req: Request) {
     .select('id, name, site_url, line_to, auto_confirm_days');
   if (error) return errorJson('案件を取得できませんでした', 500);
 
-  const results: { project: string; ok: boolean; notified: number }[] = [];
+  const results: {
+    project: string;
+    ok: boolean;
+    notified: number;
+    autoText?: string;
+  }[] = [];
   for (const p of projects ?? []) {
     try {
       await runDueTransitions(p.id, db);
       const notified = await sendDueNotifications(p, db);
-      results.push({ project: p.name, ok: true, notified });
+
+      // 文言・文字まわりの自動反映（8.2 / 9.5）。
+      // ai_enabled が立っている案件だけ。落ちても通知の結果は返す。
+      let autoText: string | undefined;
+      try {
+        const r = await runAutoText(p.id);
+        autoText = r.message;
+      } catch (e) {
+        console.error('[tick] 自動反映に失敗', p.name, e);
+        autoText = `失敗: ${e instanceof Error ? e.message : String(e)}`;
+      }
+
+      results.push({ project: p.name, ok: true, notified, autoText });
     } catch (e) {
       console.error('[tick] 失敗', p.name, e);
       results.push({ project: p.name, ok: false, notified: 0 });
