@@ -946,3 +946,41 @@ export function excerptAround(
       (dropped ? `（${dropped} 箇所は入りきらず省略）` : ''),
   };
 }
+
+/**
+ * 対象要素の説明。ループ描画かどうかが最も大事。
+ *
+ * 実測: 「93qnnfy8 の div の中身は固定文字列ではなく {w.year} という
+ * 動的な式です。この1箇所を書き換えると全カードの年が同一表示になります」
+ * — 正しい指摘だった。**同じ nq-id が複数ある = 配列から展開されている**
+ * ので、直すべきはテンプレートではなくデータ側の該当エントリになる。
+ * 何番目かは序数で分かるので、それを渡す。
+ */
+export function elementNote(r: {
+  nq_id?: string | null;
+  nq_ordinal?: number | null;
+  locator?: unknown;
+}): string[] {
+  const loc = (r.locator ?? {}) as { nqCount?: number | null; textSample?: string | null };
+  const count = loc.nqCount ?? null;
+  const ord = r.nq_ordinal;
+  const out: string[] = [];
+  if (!r.nq_id) return out;
+
+  out.push(`対象の nq-id: ${r.nq_id}`);
+  if (loc.textSample) out.push(`対象の現在のテキスト: 「${String(loc.textSample).slice(0, 80)}」`);
+
+  if (count != null && count > 1 && ord != null) {
+    out.push(
+      `**この nq-id は文書内に ${count} 個あり、対象はその ${ord + 1} 番目です。**` +
+        'つまりこの要素は配列データから繰り返し描画されています。' +
+        '**テンプレート側を書き換えると ' +
+        `${count} 個すべてが変わります。**` +
+        `直すのはデータ配列の ${ord + 1} 番目のエントリです。` +
+        '現在のテキストを手がかりに、その1件だけを直してください。' +
+        'データが見当たらない場合は applicable を false にし、' +
+        '「配列の何番目を直すのか、データがどこにあるか」を理由に書いてください。',
+    );
+  }
+  return out;
+}

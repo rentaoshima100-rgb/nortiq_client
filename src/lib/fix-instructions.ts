@@ -22,6 +22,7 @@ import type { SiteTokens } from '@/lib/site-tokens-store';
 import { adminDb } from '@/lib/supabase/admin';
 import {
   anchorsFrom,
+  elementNote,
   excerptAround,
   pathError,
   selectorsFrom,
@@ -50,6 +51,7 @@ const PLAN_SYSTEM = `あなたは制作会社のディレクターです。ク�
 - 値が依頼文にも要素にも無い場合（許可番号、電話番号など）は doable を false にし、**何が足りないか**を reason に書く
 - 要素の削除・並べ替え・機能の追加は doable を false にする。人が判断します
 - 一行の注記を足すのは doable にしてよい（「この下に小さく〜と記載」）
+- **同じ要素が繰り返し描画されている場合**（下に「N 個あり M 番目」と書かれているもの）は、テンプレートではなく**データ側の M 番目のエントリ**を直す指示にしてください。「テンプレートの {w.year} を直す」ではなく「作品データの M 番目（現在「令和6年」）の year を 2024 にする」のように書きます
 
 **画像の差し替えはここでは扱いません。** doable を false にし、reason に「画像の差し替えは素材を添付して別の経路で行う」と書いてください。`;
 
@@ -109,7 +111,7 @@ export async function generateInstructions(
 
   let q = db
     .from('requests')
-    .select('id, seq, body, category, subtype, outer_html, css_rules, nq_id, status')
+    .select('id, seq, body, category, subtype, outer_html, css_rules, nq_id, nq_ordinal, locator, status')
     .eq('project_id', projectId);
   q = opts.requestIds?.length ? q.in('id', opts.requestIds) : q.eq('status', 'received');
   const { data: reqs } = await q.order('seq').limit(30);
@@ -138,7 +140,7 @@ export async function generateInstructions(
         `## 依頼 #${r.seq}`,
         r.body.trim(),
         '',
-        r.nq_id ? `対象の nq-id: ${r.nq_id}` : '',
+        ...elementNote(r),
         '**この依頼は、下の要素をクリックして送られています。この要素が対象です。**',
         '```',
         (r.outer_html ?? '').slice(0, 2000),
@@ -227,6 +229,7 @@ const APPLY_SYSTEM = `あなたはこのリポジトリを保守しているエ�
 - 既存のクラス名と CSS 変数を使う。新しい色や書体を導入しない
 - style 属性を新しく足さない（元からインラインで書いているファイルなら、その流儀に合わせてよい）
 - 一行の注記を足すのは認めます。足してよいのは p / span / small / div / li / br / strong / em だけで、script・画像・リンク・フォーム・イベント属性は不可
+- **繰り返し描画されている要素は、テンプレートではなくデータ側を直す。** 「N 個あり M 番目」と書かれているものがそれです。テンプレートを直すと全部変わります
 
 oldStr の決まり:
 - 現在のファイルに**一字一句そのまま含まれている**文字列にしてください。空白もインデントも正確に
@@ -299,7 +302,7 @@ export async function applyInstructions(
 
   const { data: rows } = await db
     .from('fix_instructions')
-    .select('id, request_id, instruction, target_hint, requests(seq, outer_html, css_rules, nq_id, subtype)')
+    .select('id, request_id, instruction, target_hint, requests(seq, outer_html, css_rules, nq_id, nq_ordinal, locator, subtype)')
     .in('id', instructionIds)
     .eq('project_id', projectId);
   if (!rows?.length) return { ok: false, message: '指示が見つかりません', results };
@@ -314,6 +317,8 @@ export async function applyInstructions(
       outer_html: string | null;
       css_rules: { selector: string }[] | null;
       nq_id: string | null;
+      nq_ordinal: number | null;
+      locator: unknown;
       subtype: string | null;
     } | null;
   };
@@ -393,7 +398,7 @@ export async function applyInstructions(
         row.instruction,
         row.target_hint ? `触りそうな場所: ${row.target_hint}` : '',
         cand.length ? `見るべきファイル: ${cand.join(' , ')}` : '',
-        row.requests!.nq_id ? `対象の nq-id: ${row.requests!.nq_id}` : '',
+        ...elementNote(row.requests!),
         '```',
         (row.requests!.outer_html ?? '').slice(0, 1800),
         '```',
