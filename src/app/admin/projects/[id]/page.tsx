@@ -222,7 +222,28 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           対象は文言と文字の大小・太さ・行間・字間・色だけです。
           <b>自動マージはしません。</b>
         </p>
-        <RunAutoText projectId={project.id} />
+        <div className="mb-4">
+          <Link
+            href={`/admin/projects/${project.id}/fixes`}
+            className="inline-block rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+          >
+            修正指示を見る・まとめて実行する →
+          </Link>
+          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+            依頼ごとに指示だけを先に作り、社内が読んで直してから、
+            選んだものを<b>まとめて1回</b>投げます。
+            ファイルの中身を1回しか送らないので費用が抑えられ、指示は差分より読みやすく直しやすい形です。
+          </p>
+        </div>
+
+        <details>
+          <summary className="cursor-pointer text-xs text-slate-500">
+            指示を経由せず、その場で当てる（従来の動き）
+          </summary>
+          <div className="mt-3">
+            <RunAutoText projectId={project.id} />
+          </div>
+        </details>
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">

@@ -42,17 +42,17 @@ const FORBIDDEN = [
   /\.min\.(js|css)$/,
 ];
 const MARKUP_EXT = /\.(html?|jsx?|tsx?|vue|svelte|astro|liquid|erb|php|twig)$/i;
-const STYLE_EXT = /\.(css|scss|sass|less|styl)$/i;
-const SOURCE_EXT = new RegExp(`${MARKUP_EXT.source}|${STYLE_EXT.source}`, 'i');
+export const STYLE_EXT = /\.(css|scss|sass|less|styl)$/i;
+export const SOURCE_EXT = new RegExp(`${MARKUP_EXT.source}|${STYLE_EXT.source}`, 'i');
 
-function pathError(file: string): string | null {
+export function pathError(file: string): string | null {
   if (!file || file.includes('..')) return 'パスが不正です';
   if (FORBIDDEN.some((re) => re.test(file))) return `禁止パスです: ${file}`;
   if (!SOURCE_EXT.test(file)) return `ソースファイルではありません: ${file}`;
   return null;
 }
 
-function count(hay: string, needle: string): number {
+export function countOf(hay: string, needle: string): number {
   let n = 0;
   let i = 0;
   for (;;) {
@@ -254,7 +254,7 @@ interface Patch {
  * nq_id があるならそれが最も強い。ソースに注入されているサイトでは
  * 一意に決まる。無いサイトのために文字列も併用する。
  */
-function anchorsFrom(outerHtml: string, nqId: string | null): string[] {
+export function anchorsFrom(outerHtml: string, nqId: string | null): string[] {
   const out: string[] = [];
   if (nqId) out.push(nqId);
 
@@ -284,7 +284,7 @@ function anchorsFrom(outerHtml: string, nqId: string | null): string[] {
  * 本文の文字列で探すと、スタイルシートは永久に候補に入らない。
  * クラス名と、実際に当たっているセレクタで探す。
  */
-function selectorsFrom(outerHtml: string, cssRules: { selector: string }[] | null): string[] {
+export function selectorsFrom(outerHtml: string, cssRules: { selector: string }[] | null): string[] {
   const out: string[] = [];
   for (const m of outerHtml.matchAll(/class(?:Name)?\s*=\s*["']([^"']+)["']/gi)) {
     for (const cls of m[1].split(/\s+/)) {
@@ -306,7 +306,7 @@ function selectorsFrom(outerHtml: string, cssRules: { selector: string }[] | nul
 /** 一行の注記を足すのに要る、無害なタグだけ */
 const TEXT_TAGS = new Set(['p', 'span', 'small', 'div', 'li', 'br', 'strong', 'em', 'b', 'i']);
 
-function structureChanged(oldStr: string, newStr: string): string | null {
+export function structureChanged(oldStr: string, newStr: string): string | null {
   const tagList = (s: string) =>
     [...s.matchAll(/<\s*\/?\s*([a-zA-Z][\w-]*)/g)].map((m) => m[1].toLowerCase());
   const before = tagList(oldStr);
@@ -729,7 +729,7 @@ export async function runAutoText(
     let next = pending.get(patch.file) as string;
     let bad: string | null = null;
     for (const e of patch.edits) {
-      const n = count(next, e.oldStr);
+      const n = countOf(next, e.oldStr);
       if (n !== 1) {
         bad =
           n === 0
