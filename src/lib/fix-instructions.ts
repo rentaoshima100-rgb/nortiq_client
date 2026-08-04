@@ -22,6 +22,7 @@ import type { SiteTokens } from '@/lib/site-tokens-store';
 import { adminDb } from '@/lib/supabase/admin';
 import {
   anchorsFrom,
+  excerptAround,
   pathError,
   selectorsFrom,
   structureChanged,
@@ -348,13 +349,18 @@ export async function applyInstructions(
     if (f) cache.set(p, f);
   }
 
-  // 指示ごとに候補を出し、和集合を作る
+  // 指示ごとに候補を出し、和集合を作る。
+  // 手がかりも溜める。大きいファイルは、その周りだけを切り出して渡す。
   const union = new Map<string, string>();
+  const needles = new Set<string>();
   const perItem: { row: Row; cand: string[] }[] = [];
   for (const row of list) {
     const r = row.requests!;
     const anchors = anchorsFrom(r.outer_html ?? '', r.nq_id);
     const selectors = selectorsFrom(r.outer_html ?? '', r.css_rules);
+    for (const a of anchors) needles.add(a);
+    for (const sel of selectors) needles.add(sel);
+    if (r.nq_id) needles.add(`data-nq-id="${r.nq_id}"`);
     const markup: { path: string; hits: number }[] = [];
     const styles: { path: string; hits: number }[] = [];
     for (const [path, f] of cache) {
@@ -399,7 +405,12 @@ export async function applyInstructions(
     tok ? `${tok}\n` : '',
     '# ファイルの中身',
     '',
-    ...[...union.entries()].map(([p, c]) => `## ${p}\n\`\`\`\n${c.slice(0, 90000)}\n\`\`\`\n`),
+    '大きいファイルは、指摘箇所の周辺だけを抜き出しています。`/* ……N 文字目から…… */` の行は**こちらが入れた目印**なので、oldStr に含めないでください。',
+    '',
+    ...[...union.entries()].map(([p, c]) => {
+      const ex = excerptAround(c, [...needles]);
+      return `## ${p}${ex.note ? `（${ex.note}）` : ''}\n\`\`\`\n${ex.text}\n\`\`\`\n`;
+    }),
     '',
     '指示ごとに patches へ1件返してください。id には指示の番号をそのまま入れてください。**飛ばさず全件ぶん返してください。**',
   ].join('\n');

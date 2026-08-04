@@ -425,7 +425,7 @@ export async function runAutoText(
   // 未処理の依頼。1件を名指しされたときは、状態を問わずそれだけを見る
   let q = db
     .from('requests')
-    .select('id, seq, body, category, subtype, status, outer_html, css_rules, nq_id')
+    .select('id, seq, body, category, subtype, status, outer_html, css_rules, nq_id, nq_ordinal')
     .eq('project_id', projectId);
   q = opts.requestId ? q.eq('id', opts.requestId) : q.eq('status', 'received');
   const { data: reqs } = await q.order('seq').limit(opts.requestId ? 1 : 20);
@@ -597,8 +597,13 @@ export async function runAutoText(
    * 出力も1回にまとまるので、PR も自然に1本になる。
    */
   const union = new Map<string, string>();
-  for (const { cand } of perRequest) {
+  const needles = new Set<string>();
+  for (const { r, cand } of perRequest) {
     for (const c of cand) if (!union.has(c.path)) union.set(c.path, c.content);
+    for (const a of anchorsFrom(r.outer_html ?? '', r.nq_id as string | null)) needles.add(a);
+    for (const sel of selectorsFrom(r.outer_html ?? '', r.css_rules as { selector: string }[] | null))
+      needles.add(sel);
+    if (r.nq_id) needles.add(`data-nq-id="${r.nq_id}"`);
   }
 
   const tok = tokensText((proj.design_tokens as SiteTokens | null) ?? null);
@@ -611,7 +616,12 @@ export async function runAutoText(
         r.body.trim(),
         '',
         `種別: ${r.category} / ${r.subtype ?? '—'}`,
-        r.nq_id ? `対象の nq-id: ${r.nq_id}（ソースに data-nq-id があれば、これを含めて取ると一意になります）` : '',
+        r.nq_id
+          ? `対象の nq-id: ${r.nq_id}` +
+            (r.nq_ordinal != null
+              ? `（**この nq-id は同じものが複数あります。文書順で ${(r.nq_ordinal as number) + 1} 番目**。上の要素のテキストで見分けてください）`
+              : '（ソースに data-nq-id があれば、これを含めて取ると一意になります）')
+          : '',
         `見るべきファイル: ${cand.map((c) => c.path).join(' , ')}`,
         '',
         '**この依頼は、下の要素をクリックして送られています。この要素が対象です。**',
@@ -626,7 +636,12 @@ export async function runAutoText(
     tok ? `${tok}\n` : '',
     '# ファイルの中身',
     '',
-    ...[...union.entries()].map(([path, content]) => `## ${path}\n\`\`\`\n${content.slice(0, 90000)}\n\`\`\`\n`),
+    '大きいファイルは、指摘箇所の周辺だけを抜き出しています。`/* ……N 文字目から…… */` の行は**こちらが入れた目印**なので、oldStr に含めないでください。',
+    '',
+    ...[...union.entries()].map(([path, content]) => {
+      const ex = excerptAround(content, [...needles]);
+      return `## ${path}${ex.note ? `（${ex.note}）` : ''}\n\`\`\`\n${ex.text}\n\`\`\`\n`;
+    }),
     '',
     '上の依頼それぞれについて、patches に1件ずつ結果を入れてください。当てられないものは applicable を false にし、理由を書いてください。**依頼を飛ばさず、全件ぶん返してください。**',
   ].join('\n');
@@ -858,4 +873,76 @@ export async function runAutoText(
   });
 
   return { ok: true, message: `${applied.length}件を反映して PR を出しました`, results, prUrl: pr.html_url };
+}
+
+/**
+ * 大きいファイルを、手がかりの周りだけ切り出して渡す
+ *
+ * 実測でここが原因の見送りが多発した。index.html が 208,640 文字ある
+ * サイトで、90,000 文字で頭から切っていたため、**該当箇所が
+ * 落ちていた**。モデルは正しく「提示されたファイルは途中で切れており、
+ * 該当の要素が含まれていません」と報告していた。
+ *
+ * 頭から切るのではなく、手がかりの周りを取る。
+ * 目印の行は oldStr に含めないよう、プロンプト側で明示すること。
+ */
+export function excerptAround(
+  content: string,
+  needles: string[],
+  opts: { window?: number; maxTotal?: number } = {},
+): { text: string; full: boolean; note: string | null } {
+  const window = opts.window ?? 4000;
+  const maxTotal = opts.maxTotal ?? 150_000;
+  if (content.length <= maxTotal) return { text: content, full: true, note: null };
+
+  const ranges: [number, number][] = [];
+  for (const n of needles) {
+    if (!n || n.length < 2) continue;
+    let i = 0;
+    for (;;) {
+      const at = content.indexOf(n, i);
+      if (at < 0) break;
+      ranges.push([Math.max(0, at - window), Math.min(content.length, at + n.length + window)]);
+      i = at + n.length;
+      if (ranges.length > 60) break;
+    }
+    if (ranges.length > 60) break;
+  }
+
+  if (!ranges.length) {
+    return {
+      text: content.slice(0, maxTotal),
+      full: false,
+      note: '手がかりが見つからず、先頭から切り出しています。該当箇所が含まれていない可能性があります',
+    };
+  }
+
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const r of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && r[0] <= last[1] + 400) last[1] = Math.max(last[1], r[1]);
+    else merged.push([r[0], r[1]]);
+  }
+
+  let out = '';
+  let used = 0;
+  let dropped = 0;
+  for (const [s, e] of merged) {
+    const seg = content.slice(s, e);
+    if (used + seg.length > maxTotal) {
+      dropped++;
+      continue;
+    }
+    out += `\n/* ……${s} 文字目から…… */\n${seg}`;
+    used += seg.length;
+  }
+
+  return {
+    text: out,
+    full: false,
+    note:
+      `全 ${content.length} 文字のうち、指摘箇所の周辺だけを抜き出しています` +
+      (dropped ? `（${dropped} 箇所は入りきらず省略）` : ''),
+  };
 }
