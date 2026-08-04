@@ -45,6 +45,12 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
   );
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [results, setResults] = useState<{ seq: number; status: string; detail: string }[]>([]);
+  const [usage, setUsage] = useState<{
+    input: number;
+    cached: number;
+    output: number;
+    yen: number;
+  } | null>(null);
 
   const post = async (body: unknown) => {
     const res = await fetch('/api/admin/fixes', {
@@ -138,6 +144,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
     } else {
       setMsg(String(r.json.message ?? ''));
       setPrUrl((r.json.prUrl as string) ?? null);
+      setUsage((r.json.usage as typeof usage) ?? null);
     }
     setResults((r.json.results as typeof results) ?? []);
     router.refresh();
@@ -181,6 +188,15 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
           </a>
         )}
       </div>
+
+      {usage && (
+        <p className="text-xs text-slate-500">
+          入力 {usage.input.toLocaleString()} / うちキャッシュから{' '}
+          {usage.cached.toLocaleString()} ・ 出力 {usage.output.toLocaleString()} トークン ≒{' '}
+          <b>{usage.yen}円</b>
+          {usage.cached > 0 && <span className="ml-2 text-green-700">キャッシュが効いています</span>}
+        </p>
+      )}
 
       {results.length > 0 && (
         <ul className="rounded-lg border border-slate-200 bg-slate-50 p-3">

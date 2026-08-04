@@ -250,6 +250,13 @@ textarea:focus { border-color: #2563eb; background: #fff; }
 .item .ask-h { font-size: 11px; font-weight: 700; color: #1d5fa8; letter-spacing: .04em; }
 .item .ask-b { font-size: 13px; line-height: 1.7; margin-top: 4px; }
 .item .ask-i { width: 100%; margin-top: 8px; padding: 8px 10px; font: inherit; font-size: 13px; border: 1px solid #cfd8e3; border-radius: 6px; resize: vertical; box-sizing: border-box; background: #fff; }
+.item .ask-file { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.item .ask-pick { display: inline-block; padding: 5px 12px; font-size: 12px; color: #16487f; background: #fff; border: 1px solid #cfe0f2; border-radius: 6px; cursor: pointer; }
+.item .ask-fn { font-size: 11px; color: #51606f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .ask-kind { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.item .ask-kq { font-size: 11px; color: #51606f; }
+.item .ask-kb { padding: 5px 10px; font-size: 11px; color: #17222e; background: #fff; border: 1px solid #cfd8e3; border-radius: 999px; cursor: pointer; }
+.item .ask-kb.on { color: #fff; background: #1d5fa8; border-color: #1d5fa8; }
 .item .ask-f { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .item .ask-s { padding: 6px 14px; font-size: 12px; font-weight: 600; color: #fff; background: #1d5fa8; border: 0; border-radius: 6px; cursor: pointer; }
 .item .ask-s:disabled { opacity: .5; cursor: default; }

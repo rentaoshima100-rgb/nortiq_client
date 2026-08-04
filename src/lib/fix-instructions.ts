@@ -238,6 +238,22 @@ export async function generateInstructions(
   return { ok: true, message: `${created}件の指示を作りました`, created, results: items };
 }
 
+/**
+ * 使った量と概算費用。**見えないと調整できない。**
+ * キャッシュから読めた分は 1/10 の値段になるので、そこを分けて出す。
+ */
+function usageSummary(u: Anthropic.Usage | null) {
+  if (!u) return undefined;
+  const input = u.input_tokens ?? 0;
+  const cached = u.cache_read_input_tokens ?? 0;
+  const write = u.cache_creation_input_tokens ?? 0;
+  const output = u.output_tokens ?? 0;
+  // Opus 5: 入力 $5 / 出力 $25（100万トークンあたり）。書き込みは 1.25倍、読みは 0.1倍
+  const usd =
+    (input / 1e6) * 5 + (write / 1e6) * 6.25 + (cached / 1e6) * 0.5 + (output / 1e6) * 25;
+  return { input: input + write, cached, output, yen: Math.round(usd * 155) };
+}
+
 /* ── 2段目: まとめて当てる ────────────────────────────────────────────── */
 
 const APPLY_SYSTEM = `あなたはこのリポジトリを保守しているエンジニアです。**すでに決まっている指示**を、そのとおりに実装します。指示の是非は考えないでください。社内が確認済みです。
@@ -303,7 +319,13 @@ export async function applyInstructions(
   instructionIds: string[],
   actor: Actor,
   opts: { inspectOnly?: boolean } = {},
-): Promise<{ ok: boolean; message: string; results: ApplyResultItem[]; prUrl?: string }> {
+): Promise<{
+  ok: boolean;
+  message: string;
+  results: ApplyResultItem[];
+  prUrl?: string;
+  usage?: { input: number; cached: number; output: number; yen: number };
+}> {
   const db = adminDb();
   const results: ApplyResultItem[] = [];
 
@@ -467,6 +489,26 @@ export async function applyInstructions(
   }
 
   const tok = tokensText((proj.design_tokens as SiteTokens | null) ?? null);
+  /*
+   * ファイルの中身を**先に**置く。
+   *
+   * 入力の大半はファイルで、しかも毎回同じ。ここでキャッシュを切ると、
+   * 2回目以降（やり直し、点検のあとの実行、日をまたがない再実行）は
+   * その部分が 1/10 の値段で読める。
+   *
+   * 変わるもの（指示）は後ろに置く。前に置くとキャッシュが毎回外れる。
+   */
+  const filesPart = [
+    '# ファイルの中身',
+    '',
+    '大きいファイルは、指摘箇所の周辺だけを抜き出しています。`/* ……N 文字目から…… */` の行は**こちらが入れた目印**なので、oldStr に含めないでください。',
+    '',
+    ...sentFiles.map(
+      (f) => `## ${f.path}${f.note ? `（${f.note}）` : ''}\n\`\`\`\n${f.text}\n\`\`\`\n`,
+    ),
+    tok ? `${tok}\n` : '',
+  ].join('\n');
+
   const prompt = [
     '# 実装する指示（社内で確認済み）',
     '',
@@ -499,6 +541,7 @@ export async function applyInstructions(
   ].join('\n');
 
   const client = new Anthropic();
+  let usage: Anthropic.Usage | null = null;
   let patches: {
     id: string;
     applicable: boolean;
@@ -516,12 +559,22 @@ export async function applyInstructions(
         effort: 'medium',
         format: { type: 'json_schema', schema: APPLY_SCHEMA as unknown as Record<string, unknown> },
       },
-      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            // ここまでをキャッシュする。2回目以降は 1/10 の値段で読める
+            { type: 'text', text: filesPart, cache_control: { type: 'ephemeral' } },
+            { type: 'text', text: prompt },
+          ],
+        },
+      ],
     });
     const msg = await stream.finalMessage();
     const t = msg.content.find((b) => b.type === 'text');
     if (!t || t.type !== 'text') throw new Error('空の応答');
     patches = (JSON.parse(t.text) as { patches: typeof patches }).patches ?? [];
+    usage = msg.usage;
   } catch (e) {
     return {
       ok: false,
@@ -706,5 +759,11 @@ export async function applyInstructions(
     after: { applied: done.length, pr: pr.html_url, branch },
   });
 
-  return { ok: true, message: `${done.length}件を反映して PR を出しました`, results, prUrl: pr.html_url };
+  return {
+    ok: true,
+    message: `${done.length}件を反映して PR を出しました`,
+    results,
+    prUrl: pr.html_url,
+    usage: usageSummary(usage),
+  };
 }

@@ -1,4 +1,4 @@
-import type { Api, RoundDiffResponse, RoundsResponse } from './api';
+import { putToSignedUrl, type Api, type RoundDiffResponse, type RoundsResponse } from './api';
 import { el, fmtDate } from './util';
 
 /**
@@ -217,18 +217,79 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
         ta.placeholder = 'こちらにお書きください';
         q.appendChild(ta);
 
+        /*
+         * 写真を求める確認が多い（「どの写真をお使いですか」）。
+         * 文字で答えさせても話が進まないので、その場で付けられるようにする。
+         * 素材か参考かは**必ず選ばせる**（6.9）。あとで揉めたときに、
+         * 誰が「これは素材だ」と言ったかが要る。
+         */
+        let file: File | null = null;
+        let kind: 'material' | 'reference' | null = null;
+
+        const fileRow = el('div', 'ask-file');
+        const pick = el('label', 'ask-pick', '画像を添付');
+        const input = el('input') as HTMLInputElement;
+        input.type = 'file';
+        input.accept = 'image/png,image/jpeg,image/webp,image/gif,image/avif';
+        input.style.display = 'none';
+        const fname = el('span', 'ask-fn', '');
+        const kindBox = el('div', 'ask-kind');
+
+        input.addEventListener('change', () => {
+          file = input.files && input.files[0] ? input.files[0] : null;
+          fname.textContent = file ? file.name : '';
+          kindBox.innerHTML = '';
+          if (!file) return;
+          kindBox.appendChild(el('span', 'ask-kq', 'この画像は？'));
+          const mk = (v: 'material' | 'reference', label: string) => {
+            const b = el('button', 'ask-kb', label);
+            b.addEventListener('click', () => {
+              kind = v;
+              for (const n of Array.prototype.slice.call(kindBox.querySelectorAll('.ask-kb'))) {
+                (n as HTMLElement).classList.remove('on');
+              }
+              b.classList.add('on');
+            });
+            return b;
+          };
+          kindBox.appendChild(mk('material', 'サイトに使ってください'));
+          kindBox.appendChild(mk('reference', 'イメージの参考です'));
+        });
+        pick.appendChild(input);
+        pick.addEventListener('click', () => input.click());
+        fileRow.appendChild(pick);
+        fileRow.appendChild(fname);
+        q.appendChild(fileRow);
+        q.appendChild(kindBox);
+
         const send = el('button', 'ask-s', '送る') as HTMLButtonElement;
         const note = el('span', 'ask-n', '');
         send.onclick = async () => {
           const v = ta.value.trim();
-          if (!v) {
-            note.textContent = '内容をお書きください';
+          if (!v && !file) {
+            note.textContent = '内容をお書きいただくか、画像を添えてください';
+            return;
+          }
+          if (file && !kind) {
+            note.textContent = 'この画像が素材か参考かをお選びください';
             return;
           }
           send.disabled = true;
           note.textContent = '送っています…';
           try {
-            await o.api.answerQuestion(r.id, v);
+            if (file && kind) {
+              const signed = await o.api.signAttachment({
+                requestId: r.id,
+                filename: file.name,
+                mime: file.type,
+                bytes: file.size,
+                width: null,
+                height: null,
+                kind,
+              });
+              await putToSignedUrl(signed.uploadUrl, file);
+            }
+            await o.api.answerQuestion(r.id, v || '（画像を添付しました）');
             note.textContent = 'ありがとうございます';
             data = await o.api.getRounds();
             render();
