@@ -84,8 +84,9 @@ const CLASSIFY_SYSTEM = `あなたは制作会社のディレクターです。�
 4. **具体的な数値は求めないでください。** 「大きく」で十分です。何 px にするかは実装側が、そのサイトの既存の刻みから選びます。**数値が書かれていないことを理由に自信を下げないでください。**
 
 category:
-- minor    元からある要素の**中身か見え方を変えるだけ**。文言の差し替え、誤字、文字の大小・太さ・行間・字間・色、画像の差し替え
-- spec_change  要素を**増やす・減らす・並べ替える**。機能やページの変更。「この下に〜を記載」「〜を追加」「〜を無くして」「順番を」
+- minor    元からある要素の**中身か見え方を変えるだけ**。文言の差し替え、誤字、文字の大小・太さ・行間・字間・色、画像の差し替え。
+  **一行の注記・注意書きを足すのもここです。**「この下に小さく〜と記載」「注意書きを添えて」。足すのが文字だけなら minor（subtype: text）
+- spec_change  **文字以外**を増やす・減らす、並べ替える。機能やページの変更。「フォームを追加」「この項目を無くして」「順番を」
 - defect   壊れている。表示崩れ、動かない、リンク切れ。「ずれている」「押せない」「表示されない」
 - unclassified  **本当に判断がつかないときだけ。** 依頼文が要素と噛み合っていない、複数の別々のことを同時に言っている、など
 
@@ -161,8 +162,11 @@ const PATCH_SYSTEM = `あなたはこのリポジトリを保守しているエ�
 
 **やってよいのは、文言を変えることと、文字の大きさ・太さ・行間・字間・色を変えることだけです。**
 
+**一行の注記を足すのは認めます。**「この下に小さく〜と記載」のような依頼です。足してよいのは段落・スパン・注記の類（p / span / small / div / li / br / strong / em）だけで、周りの書き方に合わせてください。script・画像・リンク・フォーム・イベント属性は足さないこと。足す量は一行の注記の範囲（400文字まで、要素4つまで）に収めてください。
+
 やってはいけないこと:
-- 要素を増やす・減らす・並べ替える
+- 要素を**減らす**・並べ替える
+- 上に書いた範囲を超えて要素を増やす
 - タグや構造を変える
 - 新しいクラスや CSS 変数を作る
 - 依頼に書かれていない箇所を直す（ついでの整形もしない）
@@ -206,6 +210,28 @@ const PATCH_SCHEMA = {
     summary: { type: 'string', description: '何をどう変えたか。日本語1文' },
   },
   required: ['applicable', 'reason', 'file', 'edits', 'summary'],
+  additionalProperties: false,
+} as const;
+
+/** まとめて聞くときの形。依頼ごとに1件返させる */
+const BATCH_SCHEMA = {
+  type: 'object',
+  properties: {
+    patches: {
+      type: 'array',
+      description: '依頼ごとの結果。渡された依頼の件数ぶん、飛ばさずに返すこと',
+      items: {
+        type: 'object',
+        properties: {
+          seq: { type: 'integer', description: 'どの依頼か。見出しの #番号' },
+          ...PATCH_SCHEMA.properties,
+        },
+        required: ['seq', ...PATCH_SCHEMA.required],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['patches'],
   additionalProperties: false,
 } as const;
 
@@ -277,11 +303,50 @@ function selectorsFrom(outerHtml: string, cssRules: { selector: string }[] | nul
  * 構造を変えていないかを機械で見る（9.5）
  * モデルの自己申告だけに頼らない。
  */
+/** 一行の注記を足すのに要る、無害なタグだけ */
+const TEXT_TAGS = new Set(['p', 'span', 'small', 'div', 'li', 'br', 'strong', 'em', 'b', 'i']);
+
 function structureChanged(oldStr: string, newStr: string): string | null {
-  const tags = (s: string) =>
-    [...s.matchAll(/<\s*\/?\s*([a-zA-Z][\w-]*)/g)].map((m) => m[1].toLowerCase()).sort().join(',');
-  if (tags(oldStr) !== tags(newStr)) {
-    return 'タグの構成が変わっています。文言・文字まわりの変更ではありません。';
+  const tagList = (s: string) =>
+    [...s.matchAll(/<\s*\/?\s*([a-zA-Z][\w-]*)/g)].map((m) => m[1].toLowerCase());
+  const before = tagList(oldStr);
+  const after = tagList(newStr);
+
+  if (before.slice().sort().join(',') !== after.slice().sort().join(',')) {
+    /*
+     * 「この下に小さく〜と記載」は実際によく来る。要素は増えるが、
+     * **足しているのは文字だけ**で、危険がない。ここを一律で弾くと
+     * 一番多い依頼が全部人手に落ちる。
+     *
+     * ただし増やしてよいものは厳しく絞る。段落・スパン・注記の類だけで、
+     * script / img / iframe / リンク / イベント属性は認めない。
+     */
+    const added = [...after];
+    for (const t of before) {
+      const i = added.indexOf(t);
+      if (i >= 0) added.splice(i, 1);
+    }
+    const removed = [...before];
+    for (const t of after) {
+      const i = removed.indexOf(t);
+      if (i >= 0) removed.splice(i, 1);
+    }
+
+    if (removed.length) {
+      return 'タグが減っています。要素の削除は自動反映の対象外です。';
+    }
+    if (!added.every((t) => TEXT_TAGS.has(t))) {
+      return `文字以外の要素を足しています（${[...new Set(added)].join(' ')}）。自動反映の対象外です。`;
+    }
+    if (added.length > 4) {
+      return `要素を ${added.length} 個足しています。一行の注記の範囲を超えています。`;
+    }
+    if (/\bon\w+\s*=|<\s*(script|img|iframe|video|audio|form|input)\b/i.test(newStr)) {
+      return 'スクリプト・画像・フォームを足しています。自動反映の対象外です。';
+    }
+    if (newStr.length - oldStr.length > 400) {
+      return '足している量が多すぎます。一行の注記の範囲を超えています。';
+    }
   }
   if (!/\bstyle\s*=/.test(oldStr) && /\bstyle\s*=/.test(newStr)) {
     return 'style 属性を新しく足しています。';
@@ -463,190 +528,294 @@ export async function runAutoText(
   const applied: { seq: number; summary: string; jobId?: string }[] = [];
   const client = new Anthropic();
 
+  /*
+   * ファイルは一度だけ読む。
+   *
+   * 以前は依頼ごとに全ファイルを読み直していた。17件 × 40ファイルで
+   * **680回**リポジトリを叩いていたことになる。遅いだけでなく、
+   * 同じ内容を何度もモデルに送ることになり、費用の大半がそこだった。
+   */
+  const cache = new Map<string, { content: string; sha: string }>();
+  const readCached = async (path: string) => {
+    const hit = cache.get(path);
+    if (hit) return hit;
+    const f = await readFile(path, base);
+    if (f) cache.set(path, f);
+    return f;
+  };
+
+  // 依頼ごとに候補を出す（読み込みはキャッシュ経由）
+  const perRequest: { r: (typeof targets)[number]; cand: { path: string; content: string }[] }[] =
+    [];
   for (const r of targets) {
-    try {
-      // 対象ファイルは機械で絞る。モデルに探させない
-      /*
-       * マークアップとスタイルシートは、別の手がかりで探す。
-       *
-       * 実測: 「文字が小さい」に対して index.html しか渡せず、
-       * 「styles.css をご提示いただければ直せます」と返ってきた。
-       * 文字サイズの指定は CSS にあり、そこに日本語は入っていないので、
-       * 本文の文字列で探す限りスタイルシートは永久に候補に入らない。
-       */
-      const anchors = anchorsFrom(r.outer_html ?? '', r.nq_id as string | null);
-      const selectors = selectorsFrom(
-        r.outer_html ?? '',
-        r.css_rules as { selector: string }[] | null,
-      );
-
-      const markup: { path: string; content: string; hits: number }[] = [];
-      const styles: { path: string; content: string; hits: number }[] = [];
-      for (const path of paths) {
-        const f = await readFile(path, base);
-        if (!f) continue;
-        if (STYLE_EXT.test(path)) {
-          const hits = selectors.filter((sel) => f.content.includes(sel)).length;
-          if (hits > 0) styles.push({ path, content: f.content, hits });
-        } else {
-          const hits = anchors.filter((a) => f.content.includes(a)).length;
-          if (hits > 0) markup.push({ path, content: f.content, hits });
-        }
+    const anchors = anchorsFrom(r.outer_html ?? '', r.nq_id as string | null);
+    const selectors = selectorsFrom(
+      r.outer_html ?? '',
+      r.css_rules as { selector: string }[] | null,
+    );
+    const markup: { path: string; content: string; hits: number }[] = [];
+    const styles: { path: string; content: string; hits: number }[] = [];
+    for (const path of paths) {
+      const f = await readCached(path);
+      if (!f) continue;
+      if (STYLE_EXT.test(path)) {
+        const hits = selectors.filter((sel) => f.content.includes(sel)).length;
+        if (hits > 0) styles.push({ path, content: f.content, hits });
+      } else {
+        const hits = anchors.filter((a) => f.content.includes(a)).length;
+        if (hits > 0) markup.push({ path, content: f.content, hits });
       }
-      markup.sort((a, b) => b.hits - a.hits);
-      styles.sort((a, b) => b.hits - a.hits);
+    }
+    markup.sort((a, b) => b.hits - a.hits);
+    styles.sort((a, b) => b.hits - a.hits);
+    const cand =
+      r.subtype === 'style'
+        ? [...styles.slice(0, 2), ...markup.slice(0, 1)]
+        : [...markup.slice(0, 2), ...styles.slice(0, 1)];
 
-      // 文字まわりの依頼はスタイルシート側に答えがあることが多い。
-      // どちらか一方だけを渡すと「もう片方を見せてほしい」で止まる。
-      const cand =
-        r.subtype === 'style'
-          ? [...styles.slice(0, 2), ...markup.slice(0, 1)]
-          : [...markup.slice(0, 2), ...styles.slice(0, 1)];
-      if (!cand.length) {
-        results.push({
-          requestId: r.id,
-          seq: r.seq,
-          status: 'skipped',
-          detail: '該当箇所をリポジトリで特定できませんでした',
-        });
-        continue;
-      }
-
-      // サイトの刻みを渡す。依頼に数値が無いとき、勝手な値を作らせないため
-      const tok = tokensText((proj.design_tokens as SiteTokens | null) ?? null);
-      const body =
-        `# 依頼 #${r.seq}\n${r.body.trim()}\n\n` +
-        `**この依頼は、下の要素をクリックして送られています。この要素が対象です。**\n` +
-        (r.nq_id
-          ? `対象の nq-id: ${r.nq_id}（ソースに data-nq-id があれば、これを含めて取ると一意になります）\n`
-          : '') +
-        `\`\`\`\n${(r.outer_html ?? '').slice(0, 3000)}\n\`\`\`\n\n` +
-        (tok ? `${tok}\n\n` : '') +
-        cand.map((c) => `# 候補ファイル: ${c.path}\n\`\`\`\n${c.content.slice(0, 60000)}\n\`\`\``).join('\n\n');
-
-      const stream = client.messages.stream({
-        model: MODEL,
-        max_tokens: 8000,
-        system: PATCH_SYSTEM,
-        output_config: {
-          effort: 'medium',
-          format: { type: 'json_schema', schema: PATCH_SCHEMA as unknown as Record<string, unknown> },
-        },
-        messages: [{ role: 'user', content: [{ type: 'text', text: body }] }],
+    if (!cand.length) {
+      results.push({
+        requestId: r.id,
+        seq: r.seq,
+        status: 'skipped',
+        detail: '該当箇所をリポジトリで特定できませんでした',
       });
-      const msg = await stream.finalMessage();
-      const t = msg.content.find((b) => b.type === 'text');
-      if (!t || t.type !== 'text') throw new Error('空の応答');
-      const patch = JSON.parse(t.text) as Patch;
+      continue;
+    }
+    perRequest.push({ r, cand: cand.map(({ path, content }) => ({ path, content })) });
+  }
 
-      if (!patch.applicable) {
-        results.push({ requestId: r.id, seq: r.seq, status: 'skipped', detail: patch.reason });
-        continue;
-      }
+  if (!perRequest.length) {
+    return { ok: true, message: '当てられる書き換えはありませんでした', results };
+  }
 
-      const pe = pathError(patch.file);
-      if (pe) {
-        results.push({ requestId: r.id, seq: r.seq, status: 'skipped', detail: pe });
-        continue;
-      }
-      if (!patch.edits?.length || patch.edits.length > 6) {
-        results.push({
-          requestId: r.id,
-          seq: r.seq,
-          status: 'skipped',
-          detail: `書き換えが ${patch.edits?.length ?? 0} 件です。1〜6件にしてください`,
-        });
-        continue;
-      }
-      const se = patch.edits.map((e) => structureChanged(e.oldStr, e.newStr)).find(Boolean);
-      if (se) {
-        results.push({ requestId: r.id, seq: r.seq, status: 'skipped', detail: se });
-        continue;
-      }
+  /*
+   * 依頼ごとに呼ばず、**まとめて1回で聞く**。
+   *
+   * ファイルの中身が入力の大半を占めるので、依頼ごとに投げると
+   * 同じファイルを件数ぶん送ることになる。まとめれば1回で済む。
+   * 出力も1回にまとまるので、PR も自然に1本になる。
+   */
+  const union = new Map<string, string>();
+  for (const { cand } of perRequest) {
+    for (const c of cand) if (!union.has(c.path)) union.set(c.path, c.content);
+  }
 
-      // ブランチはここで初めて作る（当てるものが1件も無ければ作らない）
-      if (!branchReady) {
-        try {
-          await gh.getRef(inst, owner, repo, `heads/${branch}`);
-        } catch {
-          const b = await gh.getRef(inst, owner, repo, `heads/${base}`);
-          await gh.createBranch(inst, owner, repo, branch, b.object.sha);
-        }
-        branchReady = true;
-      }
+  const tok = tokensText((proj.design_tokens as SiteTokens | null) ?? null);
+  const prompt = [
+    '# 直してほしいこと（複数）',
+    '',
+    ...perRequest.map(({ r, cand }) =>
+      [
+        `## 依頼 #${r.seq}`,
+        r.body.trim(),
+        '',
+        `種別: ${r.category} / ${r.subtype ?? '—'}`,
+        r.nq_id ? `対象の nq-id: ${r.nq_id}（ソースに data-nq-id があれば、これを含めて取ると一意になります）` : '',
+        `見るべきファイル: ${cand.map((c) => c.path).join(' , ')}`,
+        '',
+        '**この依頼は、下の要素をクリックして送られています。この要素が対象です。**',
+        '```',
+        (r.outer_html ?? '').slice(0, 2500),
+        '```',
+        '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    ),
+    tok ? `${tok}\n` : '',
+    '# ファイルの中身',
+    '',
+    ...[...union.entries()].map(([path, content]) => `## ${path}\n\`\`\`\n${content.slice(0, 90000)}\n\`\`\`\n`),
+    '',
+    '上の依頼それぞれについて、patches に1件ずつ結果を入れてください。当てられないものは applicable を false にし、理由を書いてください。**依頼を飛ばさず、全件ぶん返してください。**',
+  ].join('\n');
 
-      // 当てる直前に、ブランチ HEAD の現在の内容で再検証する（9.7）。
-      // 1件でも当たらなければ、その依頼はまるごと見送る。
-      // 半分だけ当たった状態で出すと、レビューする側が一番困る。
-      const cur = await readFile(patch.file, branch);
-      if (!cur) throw new Error(`${patch.file} を読めません`);
-
-      let next = cur.content;
-      let bad: string | null = null;
-      for (const e of patch.edits) {
-        const n = count(next, e.oldStr);
-        if (n !== 1) {
-          bad =
-            n === 0
-              ? '当てる直前の再検証で対象が見つかりませんでした'
-              : `対象が ${n} 箇所に当たるため当てられません`;
-          break;
-        }
-        next = next.replace(e.oldStr, e.newStr);
-      }
-      if (bad) {
-        results.push({ requestId: r.id, seq: r.seq, status: 'skipped', detail: bad });
-        continue;
-      }
-
-      await gh.putFile(
-        inst,
-        owner,
-        repo,
-        patch.file,
-        Buffer.from(next, 'utf8'),
-        `依頼 #${r.seq}: ${patch.summary}`,
-        branch,
-        cur.sha,
-      );
-
-      const { data: job } = await db
-        .from('ai_jobs')
-        .insert({
-          request_id: r.id,
-          dispatch_no: 1,
-          patch_kind: 'text',
-          provider: 'anthropic',
-          status: 'succeeded',
-          patch: patch as never,
-          summary: patch.summary,
-          branch,
-          finished_at: new Date().toISOString(),
-        } as never)
-        .select('id')
-        .maybeSingle();
-
-      // 手つかずに見えると社内が二重に作業する。着手済みにしておく
-      await db.from('requests').update({ status: 'in_progress' } as never).eq('id', r.id);
-
-      await logEvent({
-        projectId,
-        actor: SYSTEM_ACTOR,
-        entity: 'request',
-        entityId: r.id,
-        action: 'auto_text.applied',
-        after: { file: patch.file, summary: patch.summary, branch },
-      });
-
-      applied.push({ seq: r.seq, summary: patch.summary, jobId: job?.id as string | undefined });
-      results.push({ requestId: r.id, seq: r.seq, status: 'applied', detail: patch.summary });
-    } catch (e) {
+  let patches: (Patch & { seq: number })[] = [];
+  try {
+    const stream = client.messages.stream({
+      model: MODEL,
+      max_tokens: 32000,
+      system: PATCH_SYSTEM,
+      output_config: {
+        effort: 'medium',
+        format: { type: 'json_schema', schema: BATCH_SCHEMA as unknown as Record<string, unknown> },
+      },
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+    });
+    const msg = await stream.finalMessage();
+    const t = msg.content.find((b) => b.type === 'text');
+    if (!t || t.type !== 'text') throw new Error('空の応答');
+    patches = (JSON.parse(t.text) as { patches: (Patch & { seq: number })[] }).patches ?? [];
+  } catch (e) {
+    for (const { r } of perRequest) {
       results.push({
         requestId: r.id,
         seq: r.seq,
         status: 'failed',
         detail: e instanceof Error ? e.message : String(e),
       });
+    }
+    return { ok: false, message: '書き換えを作れませんでした', results };
+  }
+
+  // ── 適用。ファイル単位で溜めてから1回ずつ書く
+  const pending = new Map<string, string>(); // path -> 現在の内容
+  const wrote = new Map<string, { seq: number; summary: string; requestId: string }[]>();
+
+  for (const { r } of perRequest) {
+    const patch = patches.find((p) => p.seq === r.seq);
+    if (!patch) {
+      results.push({
+        requestId: r.id,
+        seq: r.seq,
+        status: 'skipped',
+        detail: '書き換えが返ってきませんでした',
+      });
+      continue;
+    }
+    if (!patch.applicable) {
+      results.push({ requestId: r.id, seq: r.seq, status: 'skipped', detail: patch.reason });
+      continue;
+    }
+
+    const pe = pathError(patch.file);
+    if (pe) {
+      results.push({ requestId: r.id, seq: r.seq, status: 'skipped', detail: pe });
+      continue;
+    }
+    if (!patch.edits?.length || patch.edits.length > 6) {
+      results.push({
+        requestId: r.id,
+        seq: r.seq,
+        status: 'skipped',
+        detail: `書き換えが ${patch.edits?.length ?? 0} 件です。1〜6件にしてください`,
+      });
+      continue;
+    }
+    const se = patch.edits.map((e) => structureChanged(e.oldStr, e.newStr)).find(Boolean);
+    if (se) {
+      results.push({ requestId: r.id, seq: r.seq, status: 'skipped', detail: se });
+      continue;
+    }
+
+    // ブランチはここで初めて作る（当てるものが1件も無ければ作らない）
+    if (!branchReady) {
+      try {
+        await gh.getRef(inst, owner, repo, `heads/${branch}`);
+      } catch {
+        const b = await gh.getRef(inst, owner, repo, `heads/${base}`);
+        await gh.createBranch(inst, owner, repo, branch, b.object.sha);
+      }
+      branchReady = true;
+    }
+
+    // 当てる直前に、その時点の内容で再検証する（9.7）。
+    // 同じファイルに続けて当てるので、**前の書き換えを反映した内容**で見る。
+    if (!pending.has(patch.file)) {
+      const cur = await readFile(patch.file, branch);
+      if (!cur) {
+        results.push({
+          requestId: r.id,
+          seq: r.seq,
+          status: 'failed',
+          detail: `${patch.file} を読めません`,
+        });
+        continue;
+      }
+      pending.set(patch.file, cur.content);
+    }
+
+    let next = pending.get(patch.file) as string;
+    let bad: string | null = null;
+    for (const e of patch.edits) {
+      const n = count(next, e.oldStr);
+      if (n !== 1) {
+        bad =
+          n === 0
+            ? '当てる直前の再検証で対象が見つかりませんでした'
+            : `対象が ${n} 箇所に当たるため当てられません`;
+        break;
+      }
+      next = next.replace(e.oldStr, e.newStr);
+    }
+    if (bad) {
+      results.push({ requestId: r.id, seq: r.seq, status: 'skipped', detail: bad });
+      continue;
+    }
+
+    pending.set(patch.file, next);
+    const list = wrote.get(patch.file) ?? [];
+    list.push({ seq: r.seq, summary: patch.summary, requestId: r.id });
+    wrote.set(patch.file, list);
+  }
+
+  // ── ファイルごとに1回だけ書き込む
+  for (const [path, content] of pending) {
+    const items = wrote.get(path);
+    if (!items?.length) continue;
+    try {
+      const cur = await readFile(path, branch);
+      if (!cur) throw new Error(`${path} を読めません`);
+      await gh.putFile(
+        inst,
+        owner,
+        repo,
+        path,
+        Buffer.from(content, 'utf8'),
+        items.length === 1
+          ? `依頼 #${items[0].seq}: ${items[0].summary}`
+          : `依頼 ${items.map((i) => `#${i.seq}`).join(' ')} の修正`,
+        branch,
+        cur.sha,
+      );
+
+      for (const it of items) {
+        const { data: job } = await db
+          .from('ai_jobs')
+          .insert({
+            request_id: it.requestId,
+            dispatch_no: 1,
+            patch_kind: 'text',
+            provider: 'anthropic',
+            status: 'succeeded',
+            patch: (patches.find((p) => p.seq === it.seq) ?? null) as never,
+            summary: it.summary,
+            branch,
+            finished_at: new Date().toISOString(),
+          } as never)
+          .select('id')
+          .maybeSingle();
+
+        // 手つかずに見えると社内が二重に作業する。着手済みにしておく
+        await db.from('requests').update({ status: 'in_progress' } as never).eq('id', it.requestId);
+
+        await logEvent({
+          projectId,
+          actor: SYSTEM_ACTOR,
+          entity: 'request',
+          entityId: it.requestId,
+          action: 'auto_text.applied',
+          after: { file: path, summary: it.summary, branch },
+        });
+
+        applied.push({ seq: it.seq, summary: it.summary, jobId: job?.id as string | undefined });
+        results.push({
+          requestId: it.requestId,
+          seq: it.seq,
+          status: 'applied',
+          detail: it.summary,
+        });
+      }
+    } catch (e) {
+      for (const it of items) {
+        results.push({
+          requestId: it.requestId,
+          seq: it.seq,
+          status: 'failed',
+          detail: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
   }
 
