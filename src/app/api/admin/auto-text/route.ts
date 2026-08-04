@@ -1,5 +1,6 @@
 import { runAutoText } from '@/lib/auto-text';
 import { logEvent } from '@/lib/events';
+import { getT } from '@/lib/i18n';
 import { currentStaff, staffActor } from '@/lib/staff';
 
 export const runtime = 'nodejs';
@@ -15,8 +16,9 @@ export const maxDuration = 300;
  * ai_enabled が落ちていても、社内が明示的に押したなら走らせる。
  */
 export async function POST(req: Request) {
+  const t = await getT();
   const staff = await currentStaff();
-  if (!staff) return Response.json({ error: '権限がありません' }, { status: 403 });
+  if (!staff) return Response.json({ error: t('権限がありません') }, { status: 403 });
 
   let projectId: string;
   let requestId: string | undefined;
@@ -28,12 +30,12 @@ export async function POST(req: Request) {
     requestId = b.requestId;
     note = b.note;
   } catch {
-    return Response.json({ error: 'リクエストが不正です' }, { status: 400 });
+    return Response.json({ error: t('リクエストが不正です') }, { status: 400 });
   }
 
   // 依頼を名指しされたときは、種別と分類の門を通す。
   // 社内が「これを直せ」と判断している。機械の安全確認は外さない。
-  const out = await runAutoText(projectId, { manual: true, requestId, note });
+  const out = await runAutoText(projectId, { manual: true, requestId, note, t: await getT() });
 
   await logEvent({
     projectId,

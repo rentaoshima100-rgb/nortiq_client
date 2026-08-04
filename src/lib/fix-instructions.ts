@@ -16,6 +16,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { github, githubConfigured, installationFor } from '@/lib/github-client';
+import type { T } from '@/lib/i18n-core';
 import { logEvent, type Actor } from '@/lib/events';
 import { tokensText } from '@/lib/site-tokens.mjs';
 import type { SiteTokens } from '@/lib/site-tokens-store';
@@ -113,8 +114,10 @@ export interface PlanResult {
 export async function generateInstructions(
   projectId: string,
   actor: Actor,
-  opts: { requestIds?: string[] } = {},
+  opts: { requestIds?: string[]; t?: T } = {},
 ): Promise<{ ok: boolean; message: string; created: number; results: PlanResult[] }> {
+  // 社内が読む文だけ訳す。モデルに渡すプロンプトは日本語のまま
+  const t = opts.t ?? ((s: string) => s);
   const db = adminDb();
 
   const { data: proj } = await db
@@ -122,9 +125,9 @@ export async function generateInstructions(
     .select('id, design_tokens')
     .eq('id', projectId)
     .maybeSingle();
-  if (!proj) return { ok: false, message: '案件が見つかりません', created: 0, results: [] };
+  if (!proj) return { ok: false, message: t('案件が見つかりません'), created: 0, results: [] };
   if (!process.env.ANTHROPIC_API_KEY) {
-    return { ok: false, message: 'ANTHROPIC_API_KEY が設定されていません', created: 0, results: [] };
+    return { ok: false, message: t('ANTHROPIC_API_KEY が設定されていません'), created: 0, results: [] };
   }
 
   let q = db
@@ -134,7 +137,7 @@ export async function generateInstructions(
   q = opts.requestIds?.length ? q.in('id', opts.requestIds) : q.eq('status', 'received');
   const { data: reqs } = await q.order('seq').limit(30);
   if (!reqs?.length) {
-    return { ok: true, message: '対象の依頼がありません', created: 0, results: [] };
+    return { ok: true, message: t('対象の依頼がありません'), created: 0, results: [] };
   }
 
   // すでに下書きがあるものは作り直さない（名指しのときは作り直す）
@@ -146,7 +149,7 @@ export async function generateInstructions(
   const has = new Set(opts.requestIds?.length ? [] : (existing ?? []).map((e) => e.request_id));
   const targets = reqs.filter((r) => !has.has(r.id));
   if (!targets.length) {
-    return { ok: true, message: 'すべて指示が作られています', created: 0, results: [] };
+    return { ok: true, message: t('すべて指示が作られています'), created: 0, results: [] };
   }
 
   const tok = tokensText((proj.design_tokens as SiteTokens | null) ?? null);
@@ -193,9 +196,9 @@ export async function generateInstructions(
       messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
     });
     const msg = await stream.finalMessage();
-    const t = msg.content.find((b) => b.type === 'text');
-    if (!t || t.type !== 'text') throw new Error('空の応答');
-    const parsed = JSON.parse(t.text) as { items: Omit<PlanResult, 'requestId'>[] };
+    const blk = msg.content.find((b) => b.type === 'text');
+    if (!blk || blk.type !== 'text') throw new Error('空の応答');
+    const parsed = JSON.parse(blk.text) as { items: Omit<PlanResult, 'requestId'>[] };
     items = (parsed.items ?? []).map((i) => ({
       ...i,
       requestId: targets.find((r) => r.seq === i.seq)?.id ?? '',
@@ -203,7 +206,7 @@ export async function generateInstructions(
   } catch (e) {
     return {
       ok: false,
-      message: `指示を作れませんでした: ${e instanceof Error ? e.message : String(e)}`,
+      message: t('指示を作れませんでした: {v1}', { v1: e instanceof Error ? e.message : String(e) }),
       created: 0,
       results: [],
     };
@@ -235,7 +238,7 @@ export async function generateInstructions(
     after: { created, doable: items.filter((i) => i.doable).length },
   });
 
-  return { ok: true, message: `${created}件の指示を作りました`, created, results: items };
+  return { ok: true, message: t('{v1}件の指示を作りました', { v1: created }), created, results: items };
 }
 
 /**
@@ -318,7 +321,7 @@ export async function applyInstructions(
   projectId: string,
   instructionIds: string[],
   actor: Actor,
-  opts: { inspectOnly?: boolean } = {},
+  opts: { inspectOnly?: boolean; t?: T } = {},
 ): Promise<{
   ok: boolean;
   message: string;
@@ -326,6 +329,8 @@ export async function applyInstructions(
   prUrl?: string;
   usage?: { input: number; cached: number; output: number; yen: number };
 }> {
+  // 社内が読む文だけ訳す。モデルに渡すプロンプトは日本語のまま
+  const t = opts.t ?? ((s: string) => s);
   const db = adminDb();
   const results: ApplyResultItem[] = [];
 
@@ -335,19 +340,19 @@ export async function applyInstructions(
     .eq('id', projectId)
     .maybeSingle();
   if (!proj?.repo_owner || !proj.repo_name) {
-    return { ok: false, message: 'リポジトリが設定されていません', results };
+    return { ok: false, message: t('リポジトリが設定されていません'), results };
   }
   if (!githubConfigured() || !process.env.ANTHROPIC_API_KEY) {
-    return { ok: false, message: '認証情報が設定されていません', results };
+    return { ok: false, message: t('認証情報が設定されていません'), results };
   }
-  if (!instructionIds.length) return { ok: false, message: '指示が選ばれていません', results };
+  if (!instructionIds.length) return { ok: false, message: t('指示が選ばれていません'), results };
 
   const { data: rows } = await db
     .from('fix_instructions')
     .select('id, request_id, instruction, target_hint, requests(seq, outer_html, css_rules, nq_id, nq_ordinal, locator, subtype)')
     .in('id', instructionIds)
     .eq('project_id', projectId);
-  if (!rows?.length) return { ok: false, message: '指示が見つかりません', results };
+  if (!rows?.length) return { ok: false, message: t('指示が見つかりません'), results };
 
   type Row = {
     id: string;
@@ -370,7 +375,7 @@ export async function applyInstructions(
   let inst = proj.gh_installation_id as number | null;
   if (!inst) {
     inst = await installationFor(gh, proj.repo_owner).catch(() => null);
-    if (inst == null) return { ok: false, message: 'GitHub App が入っていません', results };
+    if (inst == null) return { ok: false, message: t('GitHub App が入っていません'), results };
   }
   const base = proj.default_branch || 'main';
   const owner = proj.repo_owner;
@@ -449,13 +454,13 @@ export async function applyInstructions(
   const checked: typeof perItem = [];
   for (const item of perItem) {
     const mine = sentFiles.filter((f) => item.cand.includes(f.path));
-    const mat = checkMaterial(item.row.requests!, mine);
+    const mat = checkMaterial(item.row.requests!, mine, t);
     if (mat.problems.length) {
       results.push({
         instructionId: item.row.id,
         seq: item.row.requests!.seq,
         status: 'skipped',
-        detail: `材料が足りません: ${mat.problems.join(' / ')}`,
+        detail: t('材料が足りません: {why}', { why: mat.problems.join(' / ') }),
       });
       continue;
     }
@@ -468,7 +473,9 @@ export async function applyInstructions(
       instructionId: item.row.id,
       seq: item.row.requests!.seq,
       status: 'skipped',
-      detail: `材料は揃っています（${item.cand.join(' , ')}）${facts.length ? ' — ' + facts.join(' / ') : ''}`,
+      detail:
+        t('材料は揃っています（{files}）', { files: item.cand.join(' , ') }) +
+        (facts.length ? ` — ${facts.join(' / ')}` : ''),
     });
   }
 
@@ -477,7 +484,9 @@ export async function applyInstructions(
     const ng = results.filter((r) => r.detail.startsWith('材料が足りません')).length;
     return {
       ok: true,
-      message: `${checked.length}件は材料が揃っています${ng ? ` / ${ng}件は足りません` : ''}`,
+      message:
+        t('{n}件は材料が揃っています', { n: checked.length }) +
+        (ng ? t(' / {n}件は足りません', { n: ng }) : ''),
       results,
     };
   }
@@ -485,7 +494,7 @@ export async function applyInstructions(
   results.length = results.length - checked.length;
 
   if (!checked.length) {
-    return { ok: true, message: '材料が揃っている指示がありませんでした', results };
+    return { ok: true, message: t('材料が揃っている指示がありませんでした'), results };
   }
 
   const tok = tokensText((proj.design_tokens as SiteTokens | null) ?? null);
@@ -571,14 +580,14 @@ export async function applyInstructions(
       ],
     });
     const msg = await stream.finalMessage();
-    const t = msg.content.find((b) => b.type === 'text');
-    if (!t || t.type !== 'text') throw new Error('空の応答');
-    patches = (JSON.parse(t.text) as { patches: typeof patches }).patches ?? [];
+    const blk = msg.content.find((b) => b.type === 'text');
+    if (!blk || blk.type !== 'text') throw new Error('空の応答');
+    patches = (JSON.parse(blk.text) as { patches: typeof patches }).patches ?? [];
     usage = msg.usage;
   } catch (e) {
     return {
       ok: false,
-      message: `書き換えを作れませんでした: ${e instanceof Error ? e.message : String(e)}`,
+      message: t('書き換えを作れませんでした: {v1}', { v1: e instanceof Error ? e.message : String(e) }),
       results,
     };
   }
@@ -592,7 +601,7 @@ export async function applyInstructions(
     const p = patches.find((x) => x.id === row.id);
     const seq = row.requests!.seq;
     if (!p) {
-      results.push({ instructionId: row.id, seq, status: 'skipped', detail: '結果が返りませんでした' });
+      results.push({ instructionId: row.id, seq, status: 'skipped', detail: t('結果が返りませんでした') });
       continue;
     }
     if (!p.applicable) {
@@ -602,12 +611,13 @@ export async function applyInstructions(
         instructionId: row.id,
         seq,
         status: 'skipped',
-        detail: gap ? `【材料不足・要調査】${p.reason}` : p.reason,
+        // 理由はモデルが日本語で返す。前置きだけ社内の言語にする
+        detail: gap ? `${t('【材料不足・要調査】')}${p.reason}` : p.reason,
       });
       if (gap) console.error('[fix] 材料不足の疑い', { instruction: row.id, reason: p.reason });
       continue;
     }
-    const pe = pathError(p.file);
+    const pe = pathError(p.file, t);
     if (pe) {
       results.push({ instructionId: row.id, seq, status: 'skipped', detail: pe });
       continue;
@@ -617,11 +627,11 @@ export async function applyInstructions(
         instructionId: row.id,
         seq,
         status: 'skipped',
-        detail: `書き換えが ${p.edits?.length ?? 0} 件です`,
+        detail: t('書き換えが {v1} 件です', { v1: p.edits?.length ?? 0 }),
       });
       continue;
     }
-    const se = p.edits.map((e) => structureChanged(e.oldStr, e.newStr)).find(Boolean);
+    const se = p.edits.map((e) => structureChanged(e.oldStr, e.newStr, t)).find(Boolean);
     if (se) {
       results.push({ instructionId: row.id, seq, status: 'skipped', detail: se });
       continue;
@@ -640,7 +650,7 @@ export async function applyInstructions(
     if (!pending.has(p.file)) {
       const cur = await readFile(p.file, branch);
       if (!cur) {
-        results.push({ instructionId: row.id, seq, status: 'failed', detail: `${p.file} を読めません` });
+        results.push({ instructionId: row.id, seq, status: 'failed', detail: t('{v1} を読めません', { v1: p.file }) });
         continue;
       }
       pending.set(p.file, cur.content);
@@ -700,7 +710,7 @@ export async function applyInstructions(
   }
 
   if (!done.length) {
-    return { ok: true, message: '当てられる書き換えはありませんでした', results };
+    return { ok: true, message: t('当てられる書き換えはありませんでした'), results };
   }
 
   const pr = await gh.createPull(inst, owner, repo, {
@@ -761,7 +771,7 @@ export async function applyInstructions(
 
   return {
     ok: true,
-    message: `${done.length}件を反映して PR を出しました`,
+    message: t('{v1}件を反映して PR を出しました', { v1: done.length }),
     results,
     prUrl: pr.html_url,
     usage: usageSummary(usage),

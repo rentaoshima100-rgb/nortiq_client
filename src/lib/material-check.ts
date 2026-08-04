@@ -13,7 +13,11 @@
  *
  * ここで止まったものは費用がかからない。そして理由が具体的なので、
  * 社内が次に何をすればよいかが分かる。
+ *
+ * `problems` は社内が読む。`facts` はモデルに渡す本文に入るので、
+ * **日本語のまま**にする（対象が日本語のサイトなので、ここを訳すと当たらなくなる）。
  */
+import type { T } from './i18n-core';
 
 export interface Material {
   /** 対象がリポジトリの中で見つかったか */
@@ -71,6 +75,7 @@ function countIn(hay: string, needle: string): number {
 export function checkMaterial(
   r: RequestForCheck,
   sent: { path: string; text: string }[],
+  t: T = (s) => s,
 ): Material {
   const loc = (r.locator ?? {}) as { nqCount?: number | null; textSample?: string | null };
   const keys = targetKeys(r);
@@ -99,14 +104,14 @@ export function checkMaterial(
 
   if (!keys.length) {
     problems.push(
-      '対象を指す手がかりがありません（nq-id もテキストも取れていない）。' +
-        'サイトに data-nq-id を注入すると確実になります。',
+      t('対象を指す手がかりがありません（nq-id もテキストも取れていない）。サイトに data-nq-id を注入すると確実になります。'),
     );
   } else if (!found) {
     problems.push(
-      `対象（${keys[0]}）が、渡すファイルの中に見つかりません。` +
-        'リポジトリに無いか、ビルド後に生成される要素の可能性があります。' +
-        `探した範囲: ${sent.map((s) => s.path).join(' , ') || 'なし'}`,
+      t('対象（{key}）が、渡すファイルの中に見つかりません。リポジトリに無いか、ビルド後に生成される要素の可能性があります。探した範囲: {where}', {
+        key: keys[0],
+        where: sent.map((s) => s.path).join(' , ') || t('なし'),
+      }),
     );
   }
 
@@ -128,8 +133,7 @@ export function checkMaterial(
     );
     if (loop.ordinal == null) {
       problems.push(
-        `繰り返し描画されている要素ですが、何番目かが記録されていません。` +
-          'どのデータを直すか決められません。',
+        t('繰り返し描画されている要素ですが、何番目かが記録されていません。どのデータを直すか決められません。'),
       );
     }
   }

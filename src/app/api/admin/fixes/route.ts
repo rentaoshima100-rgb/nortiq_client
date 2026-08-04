@@ -1,5 +1,6 @@
 import { applyInstructions, generateInstructions } from '@/lib/fix-instructions';
 import { logEvent } from '@/lib/events';
+import { getT } from '@/lib/i18n';
 import { currentStaff, staffActor } from '@/lib/staff';
 import { adminDb } from '@/lib/supabase/admin';
 
@@ -13,8 +14,9 @@ export const maxDuration = 300;
  *   { id, instruction, targetHint, status }          → 指示を直す
  */
 export async function POST(req: Request) {
+  const t = await getT();
   const staff = await currentStaff();
-  if (!staff) return Response.json({ error: '権限がありません' }, { status: 403 });
+  if (!staff) return Response.json({ error: t('権限がありません') }, { status: 403 });
 
   let b: {
     projectId?: string;
@@ -32,7 +34,7 @@ export async function POST(req: Request) {
   try {
     b = (await req.json()) as typeof b;
   } catch {
-    return Response.json({ error: 'リクエストが不正です' }, { status: 400 });
+    return Response.json({ error: t('リクエストが不正です') }, { status: 400 });
   }
 
   /*
@@ -48,7 +50,7 @@ export async function POST(req: Request) {
       .select('id, project_id')
       .eq('id', b.requestId)
       .maybeSingle();
-    if (!r) return Response.json({ error: '依頼が見つかりません' }, { status: 404 });
+    if (!r) return Response.json({ error: t('依頼が見つかりません') }, { status: 404 });
 
     const text = (b.askClient ?? '').trim();
     await db
@@ -85,18 +87,20 @@ export async function POST(req: Request) {
     return Response.json({ ok: true });
   }
 
-  if (!b.projectId) return Response.json({ error: 'projectId がありません' }, { status: 400 });
+  if (!b.projectId) return Response.json({ error: t('projectId がありません') }, { status: 400 });
 
   if (b.action === 'apply' || b.action === 'inspect') {
     // 点検はモデルを呼ばない。材料が揃っているかだけを見る
     const out = await applyInstructions(b.projectId, b.ids ?? [], staffActor(staff), {
       inspectOnly: b.action === 'inspect',
+      t: await getT(),
     });
     return Response.json(out);
   }
 
   const out = await generateInstructions(b.projectId, staffActor(staff), {
     requestIds: b.requestIds,
+    t: await getT(),
   });
   return Response.json(out);
 }

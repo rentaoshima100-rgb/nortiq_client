@@ -6,6 +6,7 @@
  *
  * 実処理は snippet-install-run.ts。案件の作成直後にも同じものを通す。
  */
+import { getT } from '@/lib/i18n';
 import {
   INSTALL_COLUMNS,
   runSnippetInstall,
@@ -48,11 +49,12 @@ function toResponse(out: Awaited<ReturnType<typeof runSnippetInstall>>) {
 }
 
 export async function GET(req: Request) {
+  const t = await getT();
   const staff = await currentStaff();
-  if (!staff) return Response.json({ error: '権限がありません' }, { status: 403 });
+  if (!staff) return Response.json({ error: t('権限がありません') }, { status: 403 });
 
   const p = await load(new URL(req.url).searchParams.get('projectId'));
-  if (!p) return Response.json({ error: '案件が見つかりません' }, { status: 404 });
+  if (!p) return Response.json({ error: t('案件が見つかりません') }, { status: 404 });
 
   const out = await runSnippetInstall(p, staffActor(staff), { dryRun: true });
   const res = toResponse(out);
@@ -65,12 +67,13 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const t = await getT();
   const staff = await currentStaff();
-  if (!staff) return Response.json({ error: '権限がありません' }, { status: 403 });
+  if (!staff) return Response.json({ error: t('権限がありません') }, { status: 403 });
 
   const body = (await req.json().catch(() => ({}))) as { projectId?: string };
   const p = await load(body.projectId ?? null);
-  if (!p) return Response.json({ error: '案件が見つかりません' }, { status: 404 });
+  if (!p) return Response.json({ error: t('案件が見つかりません') }, { status: 404 });
 
   return toResponse(await runSnippetInstall(p, staffActor(staff)));
 }

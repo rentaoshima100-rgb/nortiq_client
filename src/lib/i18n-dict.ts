@@ -654,4 +654,234 @@ export const DICT: Record<string, string> = {
     'Tablet',
   'スマホ':
     'Phone',
+
+  // ── サーバー側（結果・点検・導入手順・API のエラー）
+  ' / {n}件は足りません':
+    ' / {n} are missing material',
+  '!important を新しく使っています。':
+    'It introduces a new !important.',
+  '# {name} のサイトを修正依頼ツールに繋ぐ':
+    '# Connect {name}\'s site to the fix-request tool',
+  '## すでに済んでいること（触らないでください）':
+    '## Already done (please leave these alone)',
+  '## やること':
+    '## What to do',
+  '## 崩してはいけないこと':
+    '## Things that must not break',
+  '## 終わったら':
+    '## When you are done',
+  '### {n}. GitHub App を入れる（5分・これだけで以降は不要になります）':
+    '### {n}. Install the GitHub App (5 min — this alone makes the rest unnecessary)',
+  '### {n}. data-nq-id を注入する（任意・30分・ビルド工程のあるサイト向け）':
+    '### {n}. Inject data-nq-id (optional, 30 min, for sites with a build step)',
+  '### {n}. スニペットを置く（必須・5分）':
+    '### {n}. Add the snippet (required, 5 min)',
+  '### {n}. ビルド SHA を埋める（任意・15分・ビルド工程のあるサイトだけ）':
+    '### {n}. Embed the build SHA (optional, 15 min, only for sites with a build step)',
+  '**GitHub App を入れていただければ、次のスニペットはこちらで入れます。** PR を1本お送りするので、中身を見てマージするだけです。エンジニアの作業はそこで終わります。':
+    '**If you install the GitHub App, we will add the snippet ourselves.** We send one pull request; you read it and merge. That is where the engineering work ends.',
+  '**ありません。** 4段階すべて済んでいます。':
+    '**Nothing.** All four steps are done.',
+  '**なぜあると良いか:** 依頼が「どのビルドに対して出されたか」が分からないと、直したあとに撮り比べても**直した結果なのか、その間に別の更新が入ったのか**が区別できません。':
+    '**Why it helps:** without knowing which build a request was filed against, a before/after comparison cannot tell **your fix** from **some other change that landed in between**.',
+  '**やらなくても動きます。** 依頼のピンは「ページのどの要素か」を覚えていますが、`data-nq-id` が無い場合は本文・画像の `src`・リンクの行き先・クラス込みの経路を組み合わせて特定します（実測で、注入なしのサイトでも当てられなかった要素は 0〜4%）。':
+    '**It works without this.** A pin remembers which element on the page it points at; without `data-nq-id` we identify it from the text, the image `src`, the link target and a class-aware path (measured: 0–4% of elements went unmatched on sites with no injection).',
+  '**入れると何が変わるか:** ソース上の位置から作った ID なので、見た目や並びを直しても変わりません。実測で段1 confirmed が 74% になります。文言を大きく書き換えたときや、同じ見た目の要素が並ぶページで効きます。**長く運用する案件だけ入れてください。**':
+    '**What changes if you add it:** the ID comes from the position in the source, so it survives visual and ordering changes. Measured, tier-1 confirmed matches rise to 74%. It pays off when wording is rewritten heavily, or on pages full of identical-looking elements. **Only add it for projects you will maintain for a long time.**',
+  '**同じ ID が複数の要素に付くのは仕様です。** ループで描画している要素には同じ ID が付きます。ツール側は「ID で絞る → テキストか画像の src で1つに決める」順で見ているので、重複自体は問題ありません。':
+    '**The same ID appearing on several elements is by design.** Loop-rendered elements share one ID. The tool narrows by ID first, then settles on one element by text or image `src`, so duplicates are not a problem in themselves.',
+  '**必須はスニペット1行だけ**です。それ以降は精度と自動化の話で、やらなくても運用は始められます。手が回らなければ途中で止めて構いません。止めた場合はどこまでやったかを共有してください。':
+    '**Only the one-line snippet is required.** Everything after it is about accuracy and automation, and you can start operating without it. Stop partway if you run out of time — just tell us how far you got.',
+  '**本番に常設して構いません。** 招待トークンを持たない訪問者には一切描画しません（DOM も作りません）。一般の訪問者にとっては JS が1本読まれるだけです。':
+    '**It is safe to leave in production permanently.** Visitors without an invite token get nothing rendered at all (no DOM is created). For an ordinary visitor it is one extra script load.',
+  '- リポジトリ: `{repo}`':
+    '- Repository: `{repo}`',
+  '- 対象サイト: {url}':
+    '- Target site: {url}',
+  '- 案件キー: `{key}`':
+    '- Project key: `{key}`',
+  '// nq-sha.mjs — build の前に走らせる':
+    '// nq-sha.mjs — run this before the build',
+  '1. **`<img>` の `src` 属性を消さないでください。** `srcset` だけにして `src` を落とすと画像の同定ができなくなります。ツール側は `currentSrc` ではなく `src` 属性を見ています（`currentSrc` はビューポートで変わるため、PC で出した依頼をスマホで見ると別の画像を指してしまいます）。':
+    '1. **Do not remove the `src` attribute from `<img>`.** Dropping `src` in favour of `srcset` alone makes images impossible to identify. The tool reads the `src` attribute, not `currentSrc` (`currentSrc` changes with the viewport, so a request filed on desktop would point at a different image when viewed on a phone).',
+  '10MB を超える画像は添付できません':
+    'Images larger than 10 MB cannot be attached',
+  '2. **オリジンを変えたら社内に伝えてください。** 独自ドメインを当てた、`www` の有無を変えた、ステージングを増やした。いずれも CORS の許可判定に直接効きます。現在の登録は `{url}` です。伝えないと依頼が送れなくなります。':
+    '2. **Tell us if the origin changes.** Pointing a custom domain at it, adding or removing `www`, adding a staging host — each of these feeds directly into the CORS check. The registered origin is currently `{url}`. Without notice, requests stop going through.',
+  '3. **Cookie を前提にしないでください。** ツールとの通信はクロスサイトで Cookie は載りません。認証は Authorization ヘッダで通しています。':
+    '3. **Do not assume cookies.** Traffic to the tool is cross-site and cookies are not sent. Authentication goes through the Authorization header.',
+  'ANTHROPIC_API_KEY が設定されていません':
+    'ANTHROPIC_API_KEY is not set',
+  'App を入れない場合は、下の作業を手で行ってください。':
+    'If you do not install the App, do the steps below by hand.',
+  'CSP を設定している場合は次を許可してください。':
+    'If you have a CSP, allow the following.',
+  'GitHub App が入っていません':
+    'The GitHub App is not installed',
+  'GitHub App の認証情報が設定されていません':
+    'GitHub App credentials are not configured',
+  'Vercel なら環境変数が来ているので、ビルド前のスクリプトで差し込むだけです。':
+    'On Vercel the environment variable is already there, so a pre-build script is enough.',
+  '`.gitignore` に `.nq/` を足してください。**対応表はコミットしないでください**（毎ビルドで差分ノイズが出ます）。':
+    'Add `.nq/` to `.gitignore`. **Do not commit the mapping file** — it produces diff noise on every build.',
+  '`</body>` の直前に次の1行を追加してください。':
+    'Add the following line just before `</body>`.',
+  '`<head>` に次の meta を置き、ビルド時に実際の commit SHA を埋めてください。':
+    'Put this meta tag in `<head>` and fill in the real commit SHA at build time.',
+  'data-nq-id を注入する':
+    'Inject data-nq-id',
+  'node tools/nq-inject/cli.mjs --root . --dry     # 何件付くか確認するだけ':
+    'node tools/nq-inject/cli.mjs --root . --dry     # only report how many would be tagged',
+  'node tools/nq-inject/cli.mjs --root . --out .nq # 実際に書き換える':
+    'node tools/nq-inject/cli.mjs --root . --out .nq # actually rewrite',
+  'projectId がありません':
+    'projectId is missing',
+  'style 属性を新しく足しています。':
+    'It adds a new style attribute.',
+  '{kind} は自動反映の対象外です':
+    '{kind} is out of scope for automatic application',
+  '{n} 箇所に入っています。':
+    'Present in {n} places.',
+  '{n}件は材料が揃っています':
+    '{n} have everything they need',
+  '{v1} を読めません':
+    'Cannot read {v1}',
+  '{v1}件の指示を作りました':
+    'Drafted {v1} instructions',
+  '{v1}件を反映して PR を出しました':
+    'Applied {v1} and opened a pull request',
+  '| Contents | Read and write | ブランチ作成・コミット |':
+    '| Contents | Read and write | Create branches, commit |',
+  '| Pull requests | Read and write | PR 作成 |':
+    '| Pull requests | Read and write | Open pull requests |',
+  '| 権限 | レベル | 用途 |':
+    '| Permission | Level | Used for |',
+  '「どのビルドに対する依頼か」が確定します。撮影と差分の判定に要ります。ビルド工程が無いサイトでは埋められないので、飛ばして構いません。':
+    'It pins down which build a request was filed against. Capture and diffing need it. Sites without a build step cannot fill it in, so skip it there.',
+  '【材料不足・要調査】':
+    '[Missing material — needs investigation] ',
+  'このリポジトリのサイトを、納品後の修正依頼ツール（Nortiq Revise）に対応させてください。クライアントが本番サイト上で直接クリックして修正依頼を出せるようになります。':
+    'Please make the site in this repository work with our post-delivery fix-request tool (Nortiq Revise). It lets the client file fix requests by clicking directly on the production site.',
+  'これが済んでいれば、次のスニペットはこちらから入れられます。エンジニアの作業はここで終わります。':
+    'Once this is done we can add the snippet ourselves. The engineering work ends here.',
+  'これが無いとクライアントは依頼を出せません。必須はここだけで、以降は精度の話です。':
+    'Without this the client cannot file anything. This is the only required step; the rest is about accuracy.',
+  'すべて指示が作られています':
+    'Instructions already exist for all of them',
+  'なし':
+    'none',
+  'アップロード先の発行に失敗しました':
+    'Could not issue an upload destination',
+  'インストール後、**リポジトリのオーナー名とリポジトリ名を社内に伝えてください。**':
+    'After installing, **tell us the repository owner and repository name.**',
+  'スクリプト・画像・フォームを足しています。自動反映の対象外です。':
+    'It adds a script, image or form. Out of scope for automatic application.',
+  'スニペットを置く':
+    'Add the snippet',
+  'ソースファイルではありません: {file}':
+    'Not a source file: {file}',
+  'タグが減っています。要素の削除は自動反映の対象外です。':
+    'Tags were removed. Deleting elements is out of scope for automatic application.',
+  'デバウンス中（あと {v1} 分）':
+    'Debouncing ({v1} min left)',
+  'パスが不正です':
+    'Invalid path',
+  'ビルド SHA を埋める':
+    'Embed the build SHA',
+  'ビルドの無いサイト（手書き HTML）の場合は、デプロイのワークフローに1ステップとして足してください。':
+    'For sites with no build (hand-written HTML), add it as one step in the deploy workflow.',
+  'リクエストが不正です':
+    'Malformed request',
+  'リポジトリが設定されていません':
+    'No repository is configured',
+  '不明':
+    'unknown',
+  '依頼が見つかりません':
+    'Request not found',
+  '分類に失敗: {v1}':
+    'Classification failed: {v1}',
+  '分類の自信が {v1} のため人の確認に回します（{v2}）':
+    'Classification confidence is {v1}, so this goes to a person ({v2})',
+  '対象の依頼がありません':
+    'No requests to work on',
+  '対象を指す手がかりがありません（nq-id もテキストも取れていない）。サイトに data-nq-id を注入すると確実になります。':
+    'There is nothing to identify the target by (neither an nq-id nor any text was captured). Injecting data-nq-id into the site makes this reliable.',
+  '対象（{key}）が、渡すファイルの中に見つかりません。リポジトリに無いか、ビルド後に生成される要素の可能性があります。探した範囲: {where}':
+    'The target ({key}) is not in the files we send. It may not be in the repository, or it may be generated after the build. Searched: {where}',
+  '当てられる書き換えはありませんでした':
+    'No edits could be applied',
+  '必要な権限は2つだけです。':
+    'Only two permissions are needed.',
+  '必要な項目がありません':
+    'Required fields are missing',
+  '指示が見つかりません':
+    'Instructions not found',
+  '指示が選ばれていません':
+    'No instructions were selected',
+  '指示を作れませんでした: {v1}':
+    'Could not draft the instructions: {v1}',
+  '文字以外の要素を足しています（{tags}）。自動反映の対象外です。':
+    'It adds non-text elements ({tags}). Out of scope for automatic application.',
+  '書き換えが {v1} 件です':
+    '{v1} edits',
+  '書き換えが {v1} 件です。1〜6件にしてください':
+    '{v1} edits. Keep it between 1 and 6.',
+  '書き換えが返ってきませんでした':
+    'No edits came back',
+  '書き換えを作れませんでした':
+    'Could not produce the edits',
+  '書き換えを作れませんでした: {v1}':
+    'Could not produce the edits: {v1}',
+  '書き換え後が元の3倍を超えています。最小の変更になっていません。':
+    'The result is more than 3× the original. This is not a minimal change.',
+  '書き込むのはスニペット1行と、依頼のあった画像だけです。次は触りません。':
+    'We only write the one-line snippet and any images that were requested. Nothing else is touched.',
+  '未設定':
+    'not set',
+  '材料が揃っている指示がありませんでした':
+    'No instruction had everything it needed',
+  '材料が足りません: {why}':
+    'Missing material: {why}',
+  '材料は揃っています（{files}）':
+    'Everything is there ({files})',
+  '権限がありません':
+    'Not authorised',
+  '添付の登録に失敗しました':
+    'Could not register the attachment',
+  '無くても動きます（実測で段3 weak は 0〜4%）。入れると段1 confirmed が 74% になり、ページを直しても依頼のピンが同じ要素に付き続けます。ビルド工程のあるサイト向けです。':
+    'It works without this (measured: 0–4% land on the weak tier-3 match). With it, tier-1 confirmed matches reach 74% and a pin keeps pointing at the same element even after the page is edited. For sites with a build step.',
+  '現在: {sha}':
+    'Currently: {sha}',
+  '画像ファイルだけ添付できます':
+    'Only image files can be attached',
+  '社内から `tools/nq-inject/` 一式を受け取り、リポジトリ直下に置いてください。':
+    'Get the `tools/nq-inject/` set from us and place it at the repository root.',
+  '社内が用意した GitHub App を対象リポジトリにインストールしてください。入れていただくと、下の「スニペットを置く」をこちらで行い、**PR としてお送りします**。自動マージはしません。例外なくです。本番に出るには必ず人間がマージする必要があります。クライアントが画像の差し替えを依頼したときも、同じく PR でお送りします。':
+    'Install our GitHub App on the target repository. Once it is in, we do the "Add the snippet" step below and **send it as a pull request**. We never auto-merge — no exceptions. A human must merge for anything to reach production. When the client asks for an image to be replaced, that also arrives as a pull request.',
+  '社内に「どこまでやったか」を伝えてください。社内側で招待リンクを発行して動作を確認します。':
+    'Tell us how far you got. We will issue an invite link and verify it works.',
+  '禁止: package.json  各種ロックファイル  .github/  .env*  *.config.*  tsconfig*.json':
+    'Never written: package.json  lock files  .github/  .env*  *.config.*  tsconfig*.json',
+  '禁止パスです: {file}':
+    'Forbidden path: {file}',
+  '結果が返りませんでした':
+    'No result came back',
+  '繰り返し描画されている要素ですが、何番目かが記録されていません。どのデータを直すか決められません。':
+    'This element is loop-rendered but its ordinal was not recorded, so there is no way to tell which data entry to change.',
+  '自動で当てられる依頼はありませんでした':
+    'No request could be applied automatically',
+  '自動反映は無効です':
+    'Automatic application is off',
+  '要素を {n} 個足しています。一行の注記の範囲を超えています。':
+    'It adds {n} elements — beyond what a one-line note should need.',
+  '該当箇所をリポジトリで特定できませんでした':
+    'Could not locate the target in the repository',
+  '認証情報が設定されていません':
+    'Credentials are not configured',
+  '足している量が多すぎます。一行の注記の範囲を超えています。':
+    'Too much is being added — beyond what a one-line note should need.',
+  '（未設定）':
+    '(not set)',
+  '（画像差し替えも有効）':
+    ' (image replacement is on too)',
 };

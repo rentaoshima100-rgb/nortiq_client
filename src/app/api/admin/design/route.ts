@@ -1,4 +1,5 @@
 import { runResearch, runVariant } from '@/lib/design';
+import { getT } from '@/lib/i18n';
 import { logEvent } from '@/lib/events';
 import { currentStaff, staffActor } from '@/lib/staff';
 import { adminDb } from '@/lib/supabase/admin';
@@ -16,11 +17,12 @@ export const maxDuration = 300;
  *   { requestId, batch, variant }    → その案を1つ作る（2段目）
  */
 export async function POST(req: Request) {
+  const t = await getT();
   const staff = await currentStaff();
-  if (!staff) return Response.json({ error: '権限がありません' }, { status: 403 });
+  if (!staff) return Response.json({ error: t('権限がありません') }, { status: 403 });
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    return Response.json({ error: 'ANTHROPIC_API_KEY が設定されていません' }, { status: 503 });
+    return Response.json({ error: t('ANTHROPIC_API_KEY が設定されていません') }, { status: 503 });
   }
 
   let input: { requestId?: string; batch?: number; variant?: number };
@@ -28,7 +30,7 @@ export async function POST(req: Request) {
     input = (await req.json()) as typeof input;
     if (!input.requestId) throw new Error('requestId がありません');
   } catch {
-    return Response.json({ error: 'リクエストが不正です' }, { status: 400 });
+    return Response.json({ error: t('リクエストが不正です') }, { status: 400 });
   }
   const requestId = input.requestId;
 

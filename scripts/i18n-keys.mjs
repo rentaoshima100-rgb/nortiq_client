@@ -6,6 +6,13 @@
  *
  * 訳が抜けていても画面は壊れない（日本語のまま出る）ので、
  * 気づかないまま残りやすい。ここで機械的に出す。
+ *
+ * 見る範囲は「社内が読む文が出るところ」:
+ *   src/app/admin  src/app/login       画面
+ *   src/app/api/admin                  そのエラーを画面がそのまま出す
+ *   src/lib の一部                     結果・点検・導入手順
+ * ウィジェット（widget/）と、クライアント向けの文（line.ts / cors.ts /
+ * widget-auth.ts）は**対象外**。あれはクライアントが読むもの。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,11 +23,20 @@ function walk(d) {
     .flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
 }
 
-// t('…') と t('…', {n}) の両方。サーバーアクション（.ts）も見る
+// t('…') と t('…', {n}) の両方
 const RE = /\bt\((['"])((?:[^'"\\]|\\.)*?)\1\s*[,)]/g;
-const files = [...walk('src/app/admin'), ...walk('src/app/login')].filter((f) =>
-  /\.tsx?$/.test(f),
-);
+const LIB = [
+  'src/lib/onboarding.ts',
+  'src/lib/material-check.ts',
+  'src/lib/auto-text.ts',
+  'src/lib/fix-instructions.ts',
+];
+const files = [
+  ...walk('src/app/admin'),
+  ...walk('src/app/login'),
+  ...walk('src/app/api/admin'),
+].filter((f) => /\.tsx?$/.test(f));
+files.push(...LIB);
 
 const keys = new Set();
 for (const f of files) {

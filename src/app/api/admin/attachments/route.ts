@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { getT } from '@/lib/i18n';
 import { ATTACHMENTS_BUCKET } from '@/lib/env';
 import { logEvent } from '@/lib/events';
 import { currentStaff, staffActor } from '@/lib/staff';
@@ -17,8 +18,9 @@ const MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif
  * 素材／参考の別が揉めたとき、誰が「これは素材だ」と言ったかが要るため。
  */
 export async function POST(req: Request) {
+  const t = await getT();
   const staff = await currentStaff();
-  if (!staff) return Response.json({ error: '権限がありません' }, { status: 403 });
+  if (!staff) return Response.json({ error: t('権限がありません') }, { status: 403 });
 
   let input: {
     requestId?: string;
@@ -32,17 +34,17 @@ export async function POST(req: Request) {
   try {
     input = (await req.json()) as typeof input;
   } catch {
-    return Response.json({ error: 'リクエストが不正です' }, { status: 400 });
+    return Response.json({ error: t('リクエストが不正です') }, { status: 400 });
   }
 
   if (!input.requestId || !input.filename || !input.mime || !input.bytes) {
-    return Response.json({ error: '必要な項目がありません' }, { status: 400 });
+    return Response.json({ error: t('必要な項目がありません') }, { status: 400 });
   }
   if (!MIMES.includes(input.mime)) {
-    return Response.json({ error: '画像ファイルだけ添付できます' }, { status: 400 });
+    return Response.json({ error: t('画像ファイルだけ添付できます') }, { status: 400 });
   }
   if (input.bytes > 10 * 1024 * 1024) {
-    return Response.json({ error: '10MB を超える画像は添付できません' }, { status: 400 });
+    return Response.json({ error: t('10MB を超える画像は添付できません') }, { status: 400 });
   }
   const kind = input.kind === 'material' ? 'material' : 'reference';
 
@@ -52,7 +54,7 @@ export async function POST(req: Request) {
     .select('id, seq, project_id')
     .eq('id', input.requestId)
     .maybeSingle();
-  if (!r) return Response.json({ error: '依頼が見つかりません' }, { status: 404 });
+  if (!r) return Response.json({ error: t('依頼が見つかりません') }, { status: 404 });
 
   const safeName =
     (input.filename.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 60) || 'image').replace(/^\.+/, '');
@@ -62,7 +64,7 @@ export async function POST(req: Request) {
     .from(ATTACHMENTS_BUCKET)
     .createSignedUploadUrl(storagePath);
   if (signErr || !signed) {
-    return Response.json({ error: 'アップロード先の発行に失敗しました' }, { status: 500 });
+    return Response.json({ error: t('アップロード先の発行に失敗しました') }, { status: 500 });
   }
 
   const { data: att, error: attErr } = await db
@@ -82,7 +84,7 @@ export async function POST(req: Request) {
     .select('id')
     .single();
   if (attErr || !att) {
-    return Response.json({ error: '添付の登録に失敗しました' }, { status: 500 });
+    return Response.json({ error: t('添付の登録に失敗しました') }, { status: 500 });
   }
 
   await logEvent({

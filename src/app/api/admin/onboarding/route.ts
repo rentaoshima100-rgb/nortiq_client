@@ -1,4 +1,5 @@
 import { appUrl } from '@/lib/env';
+import { getT } from '@/lib/i18n';
 import { buildPrompt, checkSite, steps, type OnboardingInput } from '@/lib/onboarding';
 import { currentStaff } from '@/lib/staff';
 import { adminDb } from '@/lib/supabase/admin';
@@ -9,18 +10,19 @@ export const maxDuration = 30;
 
 /** 案件のサイトを見て、済んでいる作業を抜いた指示文を返す */
 export async function GET(req: Request) {
+  const t = await getT();
   const staff = await currentStaff();
-  if (!staff) return Response.json({ error: '権限がありません' }, { status: 403 });
+  if (!staff) return Response.json({ error: t('権限がありません') }, { status: 403 });
 
   const projectId = new URL(req.url).searchParams.get('projectId');
-  if (!projectId) return Response.json({ error: 'projectId がありません' }, { status: 400 });
+  if (!projectId) return Response.json({ error: t('projectId がありません') }, { status: 400 });
 
   const { data: p } = await adminDb()
     .from('projects')
     .select('name, client_name, site_url, snippet_key, repo_owner, repo_name, asset_swap_enabled')
     .eq('id', projectId)
     .maybeSingle();
-  if (!p) return Response.json({ error: '案件が見つかりません' }, { status: 404 });
+  if (!p) return Response.json({ error: t('案件が見つかりません') }, { status: 404 });
 
   const input: OnboardingInput = {
     projectName: p.name,
@@ -37,7 +39,7 @@ export async function GET(req: Request) {
 
   return Response.json({
     check,
-    steps: steps(input, check),
-    prompt: buildPrompt(input, check),
+    steps: steps(input, check, t),
+    prompt: buildPrompt(input, check, t),
   });
 }

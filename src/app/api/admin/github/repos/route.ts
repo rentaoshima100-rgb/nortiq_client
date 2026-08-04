@@ -4,6 +4,7 @@
  * インストールはリポジトリのオーナーがブラウザで承認したときに作られる。
  * ここに出てこない = まだ入っていない、なので、入れてもらう導線も一緒に返す。
  */
+import { getT } from '@/lib/i18n';
 import { github, githubConfigured, installUrl } from '@/lib/github-client';
 import { currentStaff } from '@/lib/staff';
 
@@ -12,10 +13,11 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 export async function GET() {
+  const t = await getT();
   const staff = await currentStaff();
-  if (!staff) return Response.json({ error: '権限がありません' }, { status: 403 });
+  if (!staff) return Response.json({ error: t('権限がありません') }, { status: 403 });
   if (!githubConfigured()) {
-    return Response.json({ error: 'GitHub App の認証情報が設定されていません' }, { status: 400 });
+    return Response.json({ error: t('GitHub App の認証情報が設定されていません') }, { status: 400 });
   }
 
   const gh = github();

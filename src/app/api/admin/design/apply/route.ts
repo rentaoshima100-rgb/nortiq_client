@@ -1,4 +1,5 @@
 import { planImplementation } from '@/lib/design-apply';
+import { getT } from '@/lib/i18n';
 import { logEvent } from '@/lib/events';
 import { currentStaff, staffActor } from '@/lib/staff';
 import { adminDb } from '@/lib/supabase/admin';
@@ -15,15 +16,16 @@ export const maxDuration = 300;
  *   { proposalId, confirm: true } → PR を出す
  */
 export async function POST(req: Request) {
+  const t = await getT();
   const staff = await currentStaff();
-  if (!staff) return Response.json({ error: '権限がありません' }, { status: 403 });
+  if (!staff) return Response.json({ error: t('権限がありません') }, { status: 403 });
 
   let input: { proposalId?: string; confirm?: boolean };
   try {
     input = (await req.json()) as typeof input;
     if (!input.proposalId) throw new Error('proposalId がありません');
   } catch {
-    return Response.json({ error: 'リクエストが不正です' }, { status: 400 });
+    return Response.json({ error: t('リクエストが不正です') }, { status: 400 });
   }
 
   const out = await planImplementation(input.proposalId, staffActor(staff), {

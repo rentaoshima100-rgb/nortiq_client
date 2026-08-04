@@ -17,6 +17,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { github, githubConfigured, installationFor } from '@/lib/github-client';
+import type { T } from '@/lib/i18n-core';
 import { adminDb } from '@/lib/supabase/admin';
 import { logEvent, type Actor } from '@/lib/events';
 import { tokensText } from '@/lib/site-tokens.mjs';
@@ -45,10 +46,10 @@ const MARKUP_EXT = /\.(html?|jsx?|tsx?|vue|svelte|astro|liquid|erb|php|twig)$/i;
 export const STYLE_EXT = /\.(css|scss|sass|less|styl)$/i;
 export const SOURCE_EXT = new RegExp(`${MARKUP_EXT.source}|${STYLE_EXT.source}`, 'i');
 
-export function pathError(file: string): string | null {
-  if (!file || file.includes('..')) return 'パスが不正です';
-  if (FORBIDDEN.some((re) => re.test(file))) return `禁止パスです: ${file}`;
-  if (!SOURCE_EXT.test(file)) return `ソースファイルではありません: ${file}`;
+export function pathError(file: string, t: T = (s) => s): string | null {
+  if (!file || file.includes('..')) return t('パスが不正です');
+  if (FORBIDDEN.some((re) => re.test(file))) return t('禁止パスです: {file}', { file });
+  if (!SOURCE_EXT.test(file)) return t('ソースファイルではありません: {file}', { file });
   return null;
 }
 
@@ -151,9 +152,9 @@ export async function classify(body: string, outerHtml: string | null): Promise<
     ],
   });
   const msg = await stream.finalMessage();
-  const t = msg.content.find((b) => b.type === 'text');
-  if (!t || t.type !== 'text') throw new Error('分類が空でした');
-  return JSON.parse(t.text) as Classification;
+  const blk = msg.content.find((b) => b.type === 'text');
+  if (!blk || blk.type !== 'text') throw new Error('分類が空でした');
+  return JSON.parse(blk.text) as Classification;
 }
 
 /* ── 書き換え ───────────────────────────────────────────────────────────── */
@@ -308,7 +309,7 @@ export function selectorsFrom(outerHtml: string, cssRules: { selector: string }[
 /** 一行の注記を足すのに要る、無害なタグだけ */
 const TEXT_TAGS = new Set(['p', 'span', 'small', 'div', 'li', 'br', 'strong', 'em', 'b', 'i']);
 
-export function structureChanged(oldStr: string, newStr: string): string | null {
+export function structureChanged(oldStr: string, newStr: string, t: T = (s) => s): string | null {
   const tagList = (s: string) =>
     [...s.matchAll(/<\s*\/?\s*([a-zA-Z][\w-]*)/g)].map((m) => m[1].toLowerCase());
   const before = tagList(oldStr);
@@ -324,40 +325,42 @@ export function structureChanged(oldStr: string, newStr: string): string | null 
      * script / img / iframe / リンク / イベント属性は認めない。
      */
     const added = [...after];
-    for (const t of before) {
-      const i = added.indexOf(t);
+    for (const tag of before) {
+      const i = added.indexOf(tag);
       if (i >= 0) added.splice(i, 1);
     }
     const removed = [...before];
-    for (const t of after) {
-      const i = removed.indexOf(t);
+    for (const tag of after) {
+      const i = removed.indexOf(tag);
       if (i >= 0) removed.splice(i, 1);
     }
 
     if (removed.length) {
-      return 'タグが減っています。要素の削除は自動反映の対象外です。';
+      return t('タグが減っています。要素の削除は自動反映の対象外です。');
     }
-    if (!added.every((t) => TEXT_TAGS.has(t))) {
-      return `文字以外の要素を足しています（${[...new Set(added)].join(' ')}）。自動反映の対象外です。`;
+    if (!added.every((tag) => TEXT_TAGS.has(tag))) {
+      return t('文字以外の要素を足しています（{tags}）。自動反映の対象外です。', {
+        tags: [...new Set(added)].join(' '),
+      });
     }
     if (added.length > 4) {
-      return `要素を ${added.length} 個足しています。一行の注記の範囲を超えています。`;
+      return t('要素を {n} 個足しています。一行の注記の範囲を超えています。', { n: added.length });
     }
     if (/\bon\w+\s*=|<\s*(script|img|iframe|video|audio|form|input)\b/i.test(newStr)) {
-      return 'スクリプト・画像・フォームを足しています。自動反映の対象外です。';
+      return t('スクリプト・画像・フォームを足しています。自動反映の対象外です。');
     }
     if (newStr.length - oldStr.length > 400) {
-      return '足している量が多すぎます。一行の注記の範囲を超えています。';
+      return t('足している量が多すぎます。一行の注記の範囲を超えています。');
     }
   }
   if (!/\bstyle\s*=/.test(oldStr) && /\bstyle\s*=/.test(newStr)) {
-    return 'style 属性を新しく足しています。';
+    return t('style 属性を新しく足しています。');
   }
   if (/!important/.test(newStr) && !/!important/.test(oldStr)) {
-    return '!important を新しく使っています。';
+    return t('!important を新しく使っています。');
   }
   const grew = newStr.length / Math.max(1, oldStr.length);
-  if (grew > 3) return '書き換え後が元の3倍を超えています。最小の変更になっていません。';
+  if (grew > 3) return t('書き換え後が元の3倍を超えています。最小の変更になっていません。');
   return null;
 }
 
@@ -374,13 +377,15 @@ export interface AutoResult {
  */
 export async function runAutoText(
   projectId: string,
-  opts: { manual?: boolean; requestId?: string; note?: string } = {},
+  opts: { manual?: boolean; requestId?: string; note?: string; t?: T } = {},
 ): Promise<{
   ok: boolean;
   message: string;
   results: AutoResult[];
   prUrl?: string;
 }> {
+  // 社内が読む文だけ訳す。モデルに渡すプロンプトは日本語のまま
+  const t = opts.t ?? ((s: string) => s);
   const db = adminDb();
   const results: AutoResult[] = [];
 
@@ -392,16 +397,16 @@ export async function runAutoText(
     .eq('id', projectId)
     .maybeSingle();
 
-  if (!proj) return { ok: false, message: '案件が見つかりません', results };
+  if (!proj) return { ok: false, message: t('案件が見つかりません'), results };
   // 手で押したときは、無効でも走らせる。社内が明示的に押している
   if (!proj.ai_enabled && !opts.manual) {
-    return { ok: true, message: '自動反映は無効です', results };
+    return { ok: true, message: t('自動反映は無効です'), results };
   }
   if (!proj.repo_owner || !proj.repo_name) {
-    return { ok: false, message: 'リポジトリが設定されていません', results };
+    return { ok: false, message: t('リポジトリが設定されていません'), results };
   }
   if (!githubConfigured() || !process.env.ANTHROPIC_API_KEY) {
-    return { ok: false, message: '認証情報が設定されていません', results };
+    return { ok: false, message: t('認証情報が設定されていません'), results };
   }
 
   // デバウンス（8.2）。直近の依頼が続いている間は動かさない
@@ -418,7 +423,7 @@ export async function runAutoText(
     if (waited < debounceMs) {
       return {
         ok: true,
-        message: `デバウンス中（あと ${Math.ceil((debounceMs - waited) / 60_000)} 分）`,
+        message: t('デバウンス中（あと {v1} 分）', { v1: Math.ceil((debounceMs - waited) / 60_000) }),
         results,
       };
     }
@@ -431,7 +436,7 @@ export async function runAutoText(
     .eq('project_id', projectId);
   q = opts.requestId ? q.eq('id', opts.requestId) : q.eq('status', 'received');
   const { data: reqs } = await q.order('seq').limit(opts.requestId ? 1 : 20);
-  if (!reqs?.length) return { ok: true, message: '対象の依頼がありません', results };
+  if (!reqs?.length) return { ok: true, message: t('対象の依頼がありません'), results };
 
   const { data: jobs } = await db
     .from('ai_jobs')
@@ -473,12 +478,12 @@ export async function runAutoText(
             requestId: r.id,
             seq: r.seq,
             status: 'skipped',
-            detail: `分類の自信が ${c.confidence} のため人の確認に回します（${c.reason}）`,
+            detail: t('分類の自信が {v1} のため人の確認に回します（{v2}）', { v1: c.confidence, v2: c.reason }),
           });
           continue;
         }
       } catch (e) {
-        results.push({ requestId: r.id, seq: r.seq, status: 'failed', detail: `分類に失敗: ${e}` });
+        results.push({ requestId: r.id, seq: r.seq, status: 'failed', detail: t('分類に失敗: {v1}', { v1: e instanceof Error ? e.message : String(e) }) });
         continue;
       }
     }
@@ -490,21 +495,23 @@ export async function runAutoText(
         requestId: r.id,
         seq: r.seq,
         status: 'skipped',
-        detail: `${category}${subtype ? ' / ' + subtype : ''} は自動反映の対象外です`,
+        detail: t('{kind} は自動反映の対象外です', {
+          kind: `${category}${subtype ? ` / ${subtype}` : ''}`,
+        }),
       });
       continue;
     }
     targets.push(r);
   }
 
-  if (!targets.length) return { ok: true, message: '自動で当てられる依頼はありませんでした', results };
+  if (!targets.length) return { ok: true, message: t('自動で当てられる依頼はありませんでした'), results };
 
   // ── リポジトリ
   const gh = github();
   let inst = proj.gh_installation_id as number | null;
   if (!inst) {
     inst = await installationFor(gh, proj.repo_owner).catch(() => null);
-    if (inst == null) return { ok: false, message: 'GitHub App が入っていません', results };
+    if (inst == null) return { ok: false, message: t('GitHub App が入っていません'), results };
   }
   const base = proj.default_branch || 'main';
   const owner = proj.repo_owner;
@@ -580,7 +587,7 @@ export async function runAutoText(
         requestId: r.id,
         seq: r.seq,
         status: 'skipped',
-        detail: '該当箇所をリポジトリで特定できませんでした',
+        detail: t('該当箇所をリポジトリで特定できませんでした'),
       });
       continue;
     }
@@ -588,7 +595,7 @@ export async function runAutoText(
   }
 
   if (!perRequest.length) {
-    return { ok: true, message: '当てられる書き換えはありませんでした', results };
+    return { ok: true, message: t('当てられる書き換えはありませんでした'), results };
   }
 
   /*
@@ -672,9 +679,9 @@ export async function runAutoText(
       messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
     });
     const msg = await stream.finalMessage();
-    const t = msg.content.find((b) => b.type === 'text');
-    if (!t || t.type !== 'text') throw new Error('空の応答');
-    patches = (JSON.parse(t.text) as { patches: (Patch & { seq: number })[] }).patches ?? [];
+    const blk = msg.content.find((b) => b.type === 'text');
+    if (!blk || blk.type !== 'text') throw new Error('空の応答');
+    patches = (JSON.parse(blk.text) as { patches: (Patch & { seq: number })[] }).patches ?? [];
   } catch (e) {
     for (const { r } of perRequest) {
       results.push({
@@ -684,7 +691,7 @@ export async function runAutoText(
         detail: e instanceof Error ? e.message : String(e),
       });
     }
-    return { ok: false, message: '書き換えを作れませんでした', results };
+    return { ok: false, message: t('書き換えを作れませんでした'), results };
   }
 
   // ── 適用。ファイル単位で溜めてから1回ずつ書く
@@ -698,7 +705,7 @@ export async function runAutoText(
         requestId: r.id,
         seq: r.seq,
         status: 'skipped',
-        detail: '書き換えが返ってきませんでした',
+        detail: t('書き換えが返ってきませんでした'),
       });
       continue;
     }
@@ -707,7 +714,7 @@ export async function runAutoText(
       continue;
     }
 
-    const pe = pathError(patch.file);
+    const pe = pathError(patch.file, t);
     if (pe) {
       results.push({ requestId: r.id, seq: r.seq, status: 'skipped', detail: pe });
       continue;
@@ -717,11 +724,11 @@ export async function runAutoText(
         requestId: r.id,
         seq: r.seq,
         status: 'skipped',
-        detail: `書き換えが ${patch.edits?.length ?? 0} 件です。1〜6件にしてください`,
+        detail: t('書き換えが {v1} 件です。1〜6件にしてください', { v1: patch.edits?.length ?? 0 }),
       });
       continue;
     }
-    const se = patch.edits.map((e) => structureChanged(e.oldStr, e.newStr)).find(Boolean);
+    const se = patch.edits.map((e) => structureChanged(e.oldStr, e.newStr, t)).find(Boolean);
     if (se) {
       results.push({ requestId: r.id, seq: r.seq, status: 'skipped', detail: se });
       continue;
@@ -747,7 +754,7 @@ export async function runAutoText(
           requestId: r.id,
           seq: r.seq,
           status: 'failed',
-          detail: `${patch.file} を読めません`,
+          detail: t('{v1} を読めません', { v1: patch.file }),
         });
         continue;
       }
@@ -848,7 +855,7 @@ export async function runAutoText(
   }
 
   if (!applied.length) {
-    return { ok: true, message: '当てられる書き換えはありませんでした', results };
+    return { ok: true, message: t('当てられる書き換えはありませんでした'), results };
   }
 
   const pr = await gh.createPull(inst, owner, repo, {
@@ -885,7 +892,7 @@ export async function runAutoText(
     after: { branch, pr: pr.html_url, applied: applied.length, results },
   });
 
-  return { ok: true, message: `${applied.length}件を反映して PR を出しました`, results, prUrl: pr.html_url };
+  return { ok: true, message: t('{v1}件を反映して PR を出しました', { v1: applied.length }), results, prUrl: pr.html_url };
 }
 
 /**

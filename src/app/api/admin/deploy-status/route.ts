@@ -9,6 +9,7 @@
  * deployment はあくまで「まだ出ていない理由」を言うための材料で、
  * GitHub 連携を使っていないデプロイでは何も返らない。
  */
+import { getT } from '@/lib/i18n';
 import { github, githubConfigured } from '@/lib/github-client';
 import { deployState, type DeployState } from '@/lib/snippet-install';
 import { checkSite } from '@/lib/onboarding';
@@ -20,11 +21,12 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 export async function GET(req: Request) {
+  const t = await getT();
   const staff = await currentStaff();
-  if (!staff) return Response.json({ error: '権限がありません' }, { status: 403 });
+  if (!staff) return Response.json({ error: t('権限がありません') }, { status: 403 });
 
   const projectId = new URL(req.url).searchParams.get('projectId');
-  if (!projectId) return Response.json({ error: 'projectId がありません' }, { status: 400 });
+  if (!projectId) return Response.json({ error: t('projectId がありません') }, { status: 400 });
 
   const { data } = await adminDb()
     .from('projects')
@@ -33,7 +35,7 @@ export async function GET(req: Request) {
     )
     .eq('id', projectId)
     .maybeSingle();
-  if (!data) return Response.json({ error: '案件が見つかりません' }, { status: 404 });
+  if (!data) return Response.json({ error: t('案件が見つかりません') }, { status: 404 });
 
   const p = data as {
     site_url: string | null;
