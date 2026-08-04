@@ -11,7 +11,7 @@ import {
   type BatchView,
   type ProposalView,
 } from './design-ui';
-import { AutoFixMark, FixThisRequest, StaffAttach, type AutoJob } from './staff-ui';
+import { AskClient, AutoFixMark, FixThisRequest, StaffAttach, type AutoJob } from './staff-ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -181,6 +181,13 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
       )}
 
       <FixThisRequest projectId={req.project_id} requestId={req.id} />
+
+      <AskClient
+        requestId={req.id}
+        question={(req as unknown as { client_question: string | null }).client_question}
+        answer={(req as unknown as { client_answer: string | null }).client_answer}
+        answeredAt={(req as unknown as { client_answered_at: string | null }).client_answered_at}
+      />
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <p className="whitespace-pre-wrap text-sm">{req.body}</p>

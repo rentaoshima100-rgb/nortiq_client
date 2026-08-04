@@ -356,3 +356,110 @@ export function FixThisRequest({
     </div>
   );
 }
+
+/**
+ * クライアントに確認する。
+ *
+ * 値が依頼文に無いもの（許可番号、正式名称、どの写真か）は、こちらでは
+ * 決められない。想像で埋めると事故になるので、出した本人に聞く。
+ *
+ * **依頼のページに常設する。** 修正指示のページの中だけに置いていたが、
+ * そこは指示を作らないと出てこない。社内が「これ分からないな」と
+ * 思うのは依頼を見ている時なので、その場で聞けないと使われない。
+ */
+export function AskClient({
+  requestId,
+  question,
+  answer,
+  answeredAt,
+}: {
+  requestId: string;
+  question: string | null;
+  answer: string | null;
+  answeredAt: string | null;
+}) {
+  const router = useRouter();
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function send(v: string | null) {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch('/api/admin/fixes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, askClient: v }),
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        setErr(j.error ?? `失敗しました（${res.status}）`);
+        return;
+      }
+      setText('');
+      router.refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '通信に失敗しました');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-6">
+      <h2 className="text-sm font-bold">クライアントに確認する</h2>
+      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+        依頼だけでは決められないこと（番号、正式名称、どの写真か）を、出した本人に聞けます。
+        依頼者のパネルに<b>「保留中」</b>として出ます。
+      </p>
+
+      {answer ? (
+        <div className="mt-4 rounded-lg border-l-4 border-green-600 bg-green-50 px-3 py-2">
+          <div className="text-xs font-bold text-green-800">
+            回答がありました{answeredAt ? `（${new Date(answeredAt).toLocaleString('ja-JP')}）` : ''}
+          </div>
+          <p className="mt-1 whitespace-pre-wrap text-sm">{answer}</p>
+        </div>
+      ) : null}
+
+      {question ? (
+        <div className="mt-4 rounded-lg border-l-4 border-blue-600 bg-blue-50 px-3 py-2">
+          <div className="text-xs font-bold text-blue-800">確認中（相手の画面に出ています）</div>
+          <p className="mt-1 whitespace-pre-wrap text-sm">{question}</p>
+          <button
+            onClick={() => send(null)}
+            disabled={busy}
+            className="mt-2 text-xs text-slate-500 underline disabled:opacity-50"
+          >
+            {busy ? '取り下げています…' : '取り下げる'}
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={2}
+            placeholder="例: 派遣事業の許可番号をお教えいただけますか。"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => send(text)}
+              disabled={busy || !text.trim()}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {busy ? '出しています…' : 'クライアントに聞く'}
+            </button>
+            {err && <span className="text-sm text-amber-700">{err}</span>}
+          </div>
+          <p className="mt-2 text-xs text-slate-400">
+            相手がそのまま読む文です。何を答えればよいかが一読で分かる形で書いてください。
+            「情報が不足しています」ではなく「許可番号をお教えいただけますか」。
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
