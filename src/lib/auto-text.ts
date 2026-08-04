@@ -178,7 +178,9 @@ const PATCH_SYSTEM = `あなたはこのリポジトリを保守しているエ�
 oldStr の決まり:
 - 現在のファイルに**一字一句そのまま含まれている**文字列にしてください。空白もインデントも正確に
 - ファイル内で**ちょうど1回だけ**現れる長さにしてください
-- 変更する範囲だけを取ってください。**前後の行を巻き込まないこと**`;
+- 変更する範囲だけを取ってください。**前後の行を巻き込まないこと**
+
+**同じ文字列がファイル内に複数あることがあります**（役職名、年号、同じ見出し）。そのときは、**直前の属性やタグごと含めて一意にしてください。** 依頼にはクリックされた要素の nq-id を添えています。ソースに data-nq-id が入っているなら、**その属性を含む形で oldStr を取るのが確実です**。短く取って複数に当たると、その依頼はまるごと見送りになります。`;
 
 const PATCH_SCHEMA = {
   type: 'object',
@@ -215,16 +217,36 @@ interface Patch {
   summary: string;
 }
 
-/** マークアップを探す手がかり。そのサイトにしか無い文字列 */
-function anchorsFrom(outerHtml: string): string[] {
+/**
+ * マークアップを探す手がかり。
+ *
+ * 実測でここが原因の見送りが 17件中 7件あった。
+ *   「令和6年」「平成28年」「着工：平成29年9月」
+ * 日本語だけの連なりを 4文字以上で拾っていたので、**数字で切れて**
+ * 令和(2) + 年(1) にしかならず、手がかりが1つも取れていなかった。
+ *
+ * nq_id があるならそれが最も強い。ソースに注入されているサイトでは
+ * 一意に決まる。無いサイトのために文字列も併用する。
+ */
+function anchorsFrom(outerHtml: string, nqId: string | null): string[] {
   const out: string[] = [];
-  for (const m of outerHtml.matchAll(/[぀-ヿ一-龯ー]{4,20}/g)) {
+  if (nqId) out.push(nqId);
+
+  // 日本語で始まり、途中に数字や英字が混ざってもよい連なり
+  for (const m of outerHtml.matchAll(/[぀-ヿ一-龯][぀-ヿ一-龯ー0-9０-９a-zA-Z：・]{2,23}/g)) {
     if (!out.includes(m[0])) out.push(m[0]);
-    if (out.length >= 12) break;
+    if (out.length >= 14) break;
+  }
+  // 短いものしか無いときの保険。2文字の熟語でも無いよりよい
+  if (out.length <= (nqId ? 1 : 0)) {
+    for (const m of outerHtml.matchAll(/[一-龯]{2,}/g)) {
+      if (!out.includes(m[0])) out.push(m[0]);
+      if (out.length >= 8) break;
+    }
   }
   for (const m of outerHtml.matchAll(/\b[A-Z]{4,16}\b/g)) {
     if (!out.includes(m[0])) out.push(m[0]);
-    if (out.length >= 18) break;
+    if (out.length >= 20) break;
   }
   return out;
 }
@@ -338,7 +360,7 @@ export async function runAutoText(
   // 未処理の依頼
   const { data: reqs } = await db
     .from('requests')
-    .select('id, seq, body, category, subtype, status, outer_html, css_rules')
+    .select('id, seq, body, category, subtype, status, outer_html, css_rules, nq_id')
     .eq('project_id', projectId)
     .eq('status', 'received')
     .order('seq')
@@ -447,7 +469,7 @@ export async function runAutoText(
        * 文字サイズの指定は CSS にあり、そこに日本語は入っていないので、
        * 本文の文字列で探す限りスタイルシートは永久に候補に入らない。
        */
-      const anchors = anchorsFrom(r.outer_html ?? '');
+      const anchors = anchorsFrom(r.outer_html ?? '', r.nq_id as string | null);
       const selectors = selectorsFrom(
         r.outer_html ?? '',
         r.css_rules as { selector: string }[] | null,
@@ -490,6 +512,9 @@ export async function runAutoText(
       const body =
         `# 依頼 #${r.seq}\n${r.body.trim()}\n\n` +
         `**この依頼は、下の要素をクリックして送られています。この要素が対象です。**\n` +
+        (r.nq_id
+          ? `対象の nq-id: ${r.nq_id}（ソースに data-nq-id があれば、これを含めて取ると一意になります）\n`
+          : '') +
         `\`\`\`\n${(r.outer_html ?? '').slice(0, 3000)}\n\`\`\`\n\n` +
         (tok ? `${tok}\n\n` : '') +
         cand.map((c) => `# 候補ファイル: ${c.path}\n\`\`\`\n${c.content.slice(0, 60000)}\n\`\`\``).join('\n\n');
