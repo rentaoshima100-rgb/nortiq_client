@@ -240,6 +240,11 @@ textarea:focus { border-color: #2563eb; background: #fff; }
 .item .st.carry { background: #fef3c7; color: #b45309; }
 .item .bd2 { font-size: 13px; margin-top: 4px; }
 
+.pend { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 12px 14px; background: #f4f8fd; border: 1px solid #cfe0f2; border-radius: 8px; }
+.pend-b { flex: 1; font-size: 13px; line-height: 1.6; color: #16487f; }
+.pend-a { padding: 6px 14px; font-size: 12px; font-weight: 600; color: #fff; background: #1d5fa8; border: 0; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.item .st.pending { background: #e9f1fa; color: #16487f; }
+
 /* 確認したいこと。値が分からない依頼は、出した本人に聞く */
 .item .ask { margin-top: 10px; border-left: 3px solid #1d5fa8; background: #f4f8fd; border-radius: 0 6px 6px 0; padding: 10px 12px; }
 .item .ask-h { font-size: 11px; font-weight: 700; color: #1d5fa8; letter-spacing: .04em; }

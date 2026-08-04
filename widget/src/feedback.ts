@@ -25,7 +25,7 @@ export interface FeedbackOptions {
   onChanged(): void;
 }
 
-type Filter = 'all' | 'active' | 'done';
+type Filter = 'all' | 'pending' | 'active' | 'done';
 
 export function openFeedback(o: FeedbackOptions): { destroy(): void } {
   const backdrop = el('div', 'backdrop');
@@ -122,10 +122,32 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
 
     if (!rejecting) for (const n of beforeAfter()) bd.appendChild(n);
 
+    /*
+     * 確認待ちがあることは、開いた瞬間に分かるようにする。
+     * 一覧の中に埋もれると気づかれず、こちらは待ち続けることになる。
+     */
+    if (!rejecting) {
+      const p = pendingCount();
+      if (p > 0 && filter !== 'pending') {
+        const n = el('div', 'pend');
+        n.appendChild(
+          el('div', 'pend-b', p + '件、確認したいことがあります。ご返答をお待ちしています。'),
+        );
+        const go = el('button', 'pend-a', '見る');
+        go.addEventListener('click', () => {
+          filter = 'pending';
+          render();
+        });
+        n.appendChild(go);
+        bd.appendChild(n);
+      }
+    }
+
     if (!rejecting) bd.appendChild(filters());
 
     const list = data.requests.filter((r) => {
       if (rejecting) return r.inCurrentRound;
+      if (filter === 'pending') return !!r.question;
       if (filter === 'active') return r.status === 'received' || r.status === 'in_progress';
       if (filter === 'done') return r.status === 'done';
       return true;
@@ -136,7 +158,11 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
         el(
           'div',
           'empty',
-          rejecting ? 'このラウンドの依頼がありません' : 'まだご依頼はありません',
+          rejecting
+            ? 'このラウンドの依頼がありません'
+            : filter === 'pending'
+              ? '確認待ちのものはありません'
+              : 'まだご依頼はありません',
         ),
       );
     }
@@ -163,11 +189,13 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
       const meta = el('div', 'meta');
       meta.appendChild(el('span', undefined, fmtDate(r.createdAt)));
       meta.appendChild(el('span', undefined, r.pagePath));
-      const st = el(
-        'span',
-        'st ' + (r.carriedOver ? 'carry' : r.status),
-        r.carriedOver ? '次回' : statusLabel(r.status),
-      );
+      const st = r.question
+        ? el('span', 'st pending', '保留中')
+        : el(
+            'span',
+            'st ' + (r.carriedOver ? 'carry' : r.status),
+            r.carriedOver ? '次回' : statusLabel(r.status),
+          );
       meta.appendChild(st);
       m.appendChild(meta);
       m.appendChild(el('div', 'bd2', r.body));
@@ -222,6 +250,12 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
     }
 
     if (rejecting) renderRejectFooter();
+  }
+
+  /** 返答をお願いしている件数 */
+  function pendingCount(): number {
+    if (!data) return 0;
+    return data.requests.filter((r) => !!r.question).length;
   }
 
   function quota(d: RoundsResponse): HTMLElement {
@@ -435,6 +469,9 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
       return b;
     };
     box.appendChild(mk('all', 'すべて'));
+    // 確認待ちがあるときだけ出す。無いときに空の区分を見せない
+    const p = pendingCount();
+    if (p > 0) box.appendChild(mk('pending', '保留中 ' + p));
     box.appendChild(mk('active', '対応中'));
     box.appendChild(mk('done', '完了'));
     return box;
