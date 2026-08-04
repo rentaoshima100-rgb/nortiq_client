@@ -891,8 +891,19 @@ export function excerptAround(
   needles: string[],
   opts: { window?: number; maxTotal?: number } = {},
 ): { text: string; full: boolean; note: string | null } {
-  const window = opts.window ?? 4000;
-  const maxTotal = opts.maxTotal ?? 150_000;
+  const window = opts.window ?? 8000;
+  /*
+   * 全文で渡す上限。
+   *
+   * 1M トークン扱えるモデルに対して、150,000 文字で切っていた。
+   * loop_construction の index.html は 178,703 文字 ≈ 56,000 トークン
+   * ≈ $0.28。バッチなら**1回しか送らない**ので、この額を惜しんで
+   * 「抜粋に入っていなかった」を繰り返す方がずっと高くつく。
+   *
+   * 実測で止まった原因が2回ともこれだった（該当要素が抜粋の外、
+   * データ配列が抜粋の外）。切るのは本当に巨大なファイルだけにする。
+   */
+  const maxTotal = opts.maxTotal ?? 400_000;
   if (content.length <= maxTotal) return { text: content, full: true, note: null };
 
   const ranges: [number, number][] = [];
@@ -956,6 +967,27 @@ export function excerptAround(
  * ので、直すべきはテンプレートではなくデータ側の該当エントリになる。
  * 何番目かは序数で分かるので、それを渡す。
  */
+/**
+ * ループ描画のとき、データ配列を引き寄せる手がかりを足す。
+ *
+ * テンプレートは {w.year} のような式でデータを出している。
+ * 「year:」で探せばデータ配列に当たる。テンプレートの周りを一度見て、
+ * 中の式から項目名を拾う。
+ */
+export function loopNeedles(content: string, nqId: string | null): string[] {
+  if (!nqId) return [];
+  const at = content.indexOf(`data-nq-id="${nqId}"`);
+  if (at < 0) return [];
+  const around = content.slice(Math.max(0, at - 600), at + 1200);
+  const out = new Set<string>();
+  for (const m of around.matchAll(/\{\s*\w+\.(\w{2,24})\s*\}/g)) {
+    out.add(`${m[1]}:`);
+    out.add(`"${m[1]}"`);
+    out.add(`'${m[1]}'`);
+  }
+  return [...out].slice(0, 12);
+}
+
 export function elementNote(r: {
   nq_id?: string | null;
   nq_ordinal?: number | null;

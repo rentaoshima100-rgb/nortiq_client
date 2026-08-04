@@ -25,6 +25,7 @@ import {
   anchorsFrom,
   elementNote,
   excerptAround,
+  loopNeedles,
   pathError,
   selectorsFrom,
   structureChanged,
@@ -368,6 +369,12 @@ export async function applyInstructions(
     for (const a of anchors) needles.add(a);
     for (const sel of selectors) needles.add(sel);
     if (r.nq_id) needles.add(`data-nq-id="${r.nq_id}"`);
+    // ループ描画なら、テンプレートが参照している項目名も手がかりにする。
+    // データ配列を抜粋に引き寄せるため
+    const loc = (r.locator ?? {}) as { nqCount?: number | null };
+    if (r.nq_id && (loc.nqCount ?? 0) > 1) {
+      for (const [, f] of cache) for (const n of loopNeedles(f.content, r.nq_id)) needles.add(n);
+    }
     const markup: { path: string; hits: number }[] = [];
     const styles: { path: string; hits: number }[] = [];
     for (const [path, f] of cache) {
