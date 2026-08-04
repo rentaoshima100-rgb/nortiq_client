@@ -41,7 +41,7 @@ export async function GET(req: Request) {
 
   const { data: reqs } = await db
     .from('requests')
-    .select('id, seq, body, status, category, page_path, round_id, created_at')
+    .select('id, seq, body, status, category, page_path, round_id, created_at, client_question, client_answer')
     .eq('project_id', projectId)
     .order('seq', { ascending: false })
     .limit(60);
@@ -87,6 +87,9 @@ export async function GET(req: Request) {
         category: r.category,
         pagePath: r.page_path,
         createdAt: r.created_at,
+        // 値が無くて進められない依頼は、本人に聞く（13.4: AI の語は出さない）
+        question: r.client_question ?? null,
+        answered: !!r.client_answer,
         inCurrentRound: !!round && r.round_id === round.id,
         carriedOver: r.round_id === null,
       })),

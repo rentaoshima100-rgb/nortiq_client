@@ -372,7 +372,7 @@ export interface AutoResult {
  */
 export async function runAutoText(
   projectId: string,
-  opts: { manual?: boolean; requestId?: string } = {},
+  opts: { manual?: boolean; requestId?: string; note?: string } = {},
 ): Promise<{
   ok: boolean;
   message: string;

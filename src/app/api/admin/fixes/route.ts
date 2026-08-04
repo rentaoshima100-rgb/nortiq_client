@@ -1,4 +1,5 @@
 import { applyInstructions, generateInstructions } from '@/lib/fix-instructions';
+import { logEvent } from '@/lib/events';
 import { currentStaff, staffActor } from '@/lib/staff';
 import { adminDb } from '@/lib/supabase/admin';
 
@@ -24,11 +25,49 @@ export async function POST(req: Request) {
     instruction?: string;
     targetHint?: string;
     status?: string;
+    /** クライアントに質問を出す／取り下げる */
+    askClient?: string | null;
+    requestId?: string;
   };
   try {
     b = (await req.json()) as typeof b;
   } catch {
     return Response.json({ error: 'リクエストが不正です' }, { status: 400 });
+  }
+
+  /*
+   * クライアントへの確認を出す／取り下げる。
+   *
+   * 質問はクライアントがそのまま読む。**社内が中身を見てから出す。**
+   * 誤った質問がそのまま届くと、依頼そのものの信用に関わる。
+   */
+  if (b.requestId && b.askClient !== undefined) {
+    const db = adminDb();
+    const { data: r } = await db
+      .from('requests')
+      .select('id, project_id')
+      .eq('id', b.requestId)
+      .maybeSingle();
+    if (!r) return Response.json({ error: '依頼が見つかりません' }, { status: 404 });
+
+    const text = (b.askClient ?? '').trim();
+    await db
+      .from('requests')
+      .update({
+        client_question: text || null,
+        client_question_at: text ? new Date().toISOString() : null,
+      } as never)
+      .eq('id', b.requestId);
+
+    await logEvent({
+      projectId: r.project_id,
+      actor: staffActor(staff),
+      entity: 'request',
+      entityId: b.requestId,
+      action: text ? 'client_question.asked' : 'client_question.withdrawn',
+      after: { question: text || null },
+    });
+    return Response.json({ ok: true });
   }
 
   // 指示そのものの編集。ここではモデルを呼ばない

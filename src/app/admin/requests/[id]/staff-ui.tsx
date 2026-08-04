@@ -244,6 +244,7 @@ export function FixThisRequest({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
   const [out, setOut] = useState<{
     message: string;
     prUrl?: string;
@@ -259,7 +260,7 @@ export function FixThisRequest({
       const res = await fetch('/api/admin/auto-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, requestId }),
+        body: JSON.stringify({ projectId, requestId, note: note.trim() || undefined }),
       });
       const text = await res.text();
       try {
@@ -282,6 +283,25 @@ export function FixThisRequest({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6">
+      {/*
+        依頼文だけでは足りないことがある。値を持っているのは社内で、
+        クライアントは「許可番号を入れて」としか書かない。
+        ここに書いたものは依頼文より優先される。
+      */}
+      <label className="mb-3 block">
+        <span className="text-xs font-medium text-slate-600">補足の指示（任意）</span>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          placeholder="例: 許可番号は 派13-300000 です／文字は1段だけ小さく／ヘッダーは触らないで"
+          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
+        <span className="mt-1 block text-xs text-slate-400">
+          依頼文に無い値や、外してほしくない条件をここに書いてください。**依頼文より優先されます。**
+        </span>
+      </label>
+
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={run}

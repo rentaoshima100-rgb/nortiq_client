@@ -20,18 +20,20 @@ export async function POST(req: Request) {
 
   let projectId: string;
   let requestId: string | undefined;
+  let note: string | undefined;
   try {
-    const b = (await req.json()) as { projectId?: string; requestId?: string };
+    const b = (await req.json()) as { projectId?: string; requestId?: string; note?: string };
     if (!b.projectId) throw new Error('projectId がありません');
     projectId = b.projectId;
     requestId = b.requestId;
+    note = b.note;
   } catch {
     return Response.json({ error: 'リクエストが不正です' }, { status: 400 });
   }
 
   // 依頼を名指しされたときは、種別と分類の門を通す。
   // 社内が「これを直せ」と判断している。機械の安全確認は外さない。
-  const out = await runAutoText(projectId, { manual: true, requestId });
+  const out = await runAutoText(projectId, { manual: true, requestId, note });
 
   await logEvent({
     projectId,
@@ -41,6 +43,7 @@ export async function POST(req: Request) {
     action: requestId ? 'auto_text.run_for_request' : 'auto_text.run_manually',
     after: {
       requestId: requestId ?? null,
+      note: note ?? null,
       message: out.message,
       applied: out.results.filter((r) => r.status === 'applied').length,
       skipped: out.results.filter((r) => r.status === 'skipped').length,

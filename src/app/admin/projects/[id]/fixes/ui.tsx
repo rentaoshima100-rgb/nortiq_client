@@ -13,8 +13,12 @@ export interface FixRow {
   status: string;
   source: string;
   pr_url: string | null;
+  question: string | null;
   seq: number;
   body: string;
+  /** いまクライアントに出している質問。出していなければ null */
+  asked: string | null;
+  answer: string | null;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -86,6 +90,18 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
       delete n[id];
       return n;
     });
+    router.refresh();
+  }
+
+  /**
+   * クライアントに確認を出す。
+   * **必ず社内が中身を見てから出す。** 誤った質問がそのまま届くと、
+   * 依頼そのものの信用に関わる。
+   */
+  async function ask(r: FixRow, text: string | null) {
+    setBusy(r.id);
+    await post({ requestId: r.request_id, askClient: text });
+    setBusy(null);
     router.refresh();
   }
 
@@ -253,6 +269,53 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
               見送る
             </button>
           </div>
+
+          {/* クライアントへの確認。値が分からないものは想像で埋めない */}
+          {(r.question || r.asked || r.answer) && (
+            <div className="mt-3 rounded-lg border-l-4 border-blue-600 bg-blue-50 px-3 py-2">
+              {r.answer ? (
+                <>
+                  <div className="text-xs font-bold text-blue-800">クライアントの回答</div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm">{r.answer}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    この内容で指示を作り直してください。
+                  </p>
+                </>
+              ) : r.asked ? (
+                <>
+                  <div className="text-xs font-bold text-blue-800">確認中（画面に出ています）</div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm">{r.asked}</p>
+                  <button
+                    onClick={() => ask(r, null)}
+                    disabled={busy !== null}
+                    className="mt-2 text-xs text-slate-500 underline"
+                  >
+                    取り下げる
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="text-xs font-bold text-blue-800">クライアントに聞く</div>
+                  <textarea
+                    defaultValue={r.question ?? ''}
+                    onChange={(e) => setEdits((s2) => ({ ...s2, ['q:' + r.id]: e.target.value }))}
+                    rows={2}
+                    className="mt-2 w-full rounded border border-blue-200 bg-white px-2 py-1 text-sm"
+                  />
+                  <button
+                    onClick={() => ask(r, edits['q:' + r.id] ?? r.question ?? '')}
+                    disabled={busy !== null}
+                    className="mt-2 rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white"
+                  >
+                    {busy === r.id ? '出しています…' : 'この文でクライアントに出す'}
+                  </button>
+                  <p className="mt-1 text-xs text-slate-500">
+                    依頼者の画面に「確認したいこと」として出ます。文面は必ず読んでから出してください。
+                  </p>
+                </>
+              )}
+            </div>
+          )}
         </div>
       ))}
 

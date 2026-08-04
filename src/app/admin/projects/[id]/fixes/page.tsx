@@ -19,17 +19,28 @@ export default async function FixesPage({ params }: { params: Promise<{ id: stri
   const { data: raw } = await db
     .from('fix_instructions')
     .select(
-      'id, request_id, instruction, target_hint, doable, reason, status, source, pr_url, created_at, requests(seq, body)',
+      'id, request_id, instruction, target_hint, doable, reason, status, source, pr_url, question, created_at, requests(seq, body, client_question, client_answer)',
     )
     .eq('project_id', id)
     .order('created_at', { ascending: false })
     .limit(200);
 
-  const rows: FixRow[] = ((raw ?? []) as unknown as (Omit<FixRow, 'seq' | 'body'> & {
-    requests: { seq: number; body: string } | null;
+  const rows: FixRow[] = ((raw ?? []) as unknown as (Omit<FixRow, 'seq' | 'body' | 'asked' | 'answer'> & {
+    requests: {
+      seq: number;
+      body: string;
+      client_question: string | null;
+      client_answer: string | null;
+    } | null;
   })[])
     .filter((r) => r.requests)
-    .map((r) => ({ ...r, seq: r.requests!.seq, body: r.requests!.body }))
+    .map((r) => ({
+      ...r,
+      seq: r.requests!.seq,
+      body: r.requests!.body,
+      asked: r.requests!.client_question,
+      answer: r.requests!.client_answer,
+    }))
     .sort((a, b) => a.seq - b.seq);
 
   return (

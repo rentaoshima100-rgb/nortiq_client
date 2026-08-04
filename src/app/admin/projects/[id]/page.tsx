@@ -628,7 +628,22 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                   const cUrl = c ? cropUrl.get(c.path) : undefined;
                   return (
                     <tr key={r.id} className="border-t border-slate-100 align-top">
-                      <td className="px-3 py-3 tabular-nums text-slate-400">{r.seq}</td>
+                      <td className="px-3 py-3 tabular-nums">
+                        {project.site_url ? (
+                          // 番号を押すと、その箇所までスクロールしてピンが光る
+                          <a
+                            href={siteViewUrl(project.site_url, r.page_path, r.seq)}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="サイトの該当箇所を開く"
+                            className="font-medium text-blue-700 underline decoration-blue-200 underline-offset-2 hover:decoration-blue-500"
+                          >
+                            {r.seq}
+                          </a>
+                        ) : (
+                          <span className="text-slate-400">{r.seq}</span>
+                        )}
+                      </td>
                       <td className="px-3 py-3">
                         <div className="flex gap-3">
                           {cUrl && (

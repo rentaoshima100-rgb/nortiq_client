@@ -45,7 +45,10 @@ export interface RoundsResponse {
     category: string;
     pagePath: string;
     createdAt: string;
-    inCurrentRound: boolean;
+    /** 社内から本人への確認。入っているとパネルに出る */
+  question: string | null;
+  answered: boolean;
+  inCurrentRound: boolean;
     carriedOver: boolean;
   }[];
 }
@@ -126,6 +129,14 @@ export function createApi(base: string, token: string, projectKey: string) {
       return call<InitResponse>('/api/w/init', {
         method: 'POST',
         body: JSON.stringify({ projectKey }),
+      });
+    },
+
+    /** 「確認したいこと」に答える */
+    answerQuestion(requestId: string, answer: string): Promise<{ ok: boolean }> {
+      return call<{ ok: boolean }>('/api/w/answer', {
+        method: 'POST',
+        body: JSON.stringify({ projectKey, requestId, answer }),
       });
     },
 

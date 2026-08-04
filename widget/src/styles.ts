@@ -239,6 +239,16 @@ textarea:focus { border-color: #2563eb; background: #fff; }
 .item .st.done { background: #dcfce7; color: #15803d; }
 .item .st.carry { background: #fef3c7; color: #b45309; }
 .item .bd2 { font-size: 13px; margin-top: 4px; }
+
+/* 確認したいこと。値が分からない依頼は、出した本人に聞く */
+.item .ask { margin-top: 10px; border-left: 3px solid #1d5fa8; background: #f4f8fd; border-radius: 0 6px 6px 0; padding: 10px 12px; }
+.item .ask-h { font-size: 11px; font-weight: 700; color: #1d5fa8; letter-spacing: .04em; }
+.item .ask-b { font-size: 13px; line-height: 1.7; margin-top: 4px; }
+.item .ask-i { width: 100%; margin-top: 8px; padding: 8px 10px; font: inherit; font-size: 13px; border: 1px solid #cfd8e3; border-radius: 6px; resize: vertical; box-sizing: border-box; background: #fff; }
+.item .ask-f { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.item .ask-s { padding: 6px 14px; font-size: 12px; font-weight: 600; color: #fff; background: #1d5fa8; border: 0; border-radius: 6px; cursor: pointer; }
+.item .ask-s:disabled { opacity: .5; cursor: default; }
+.item .ask-n { font-size: 11px; color: #51606f; }
 .item .ck { margin-right: 2px; accent-color: #2563eb; width: 16px; height: 16px; }
 .empty { padding: 40px 20px; text-align: center; font-size: 13px; color: #94a3b8; }
 

@@ -55,7 +55,15 @@ const PLAN_SYSTEM = `あなたは制作会社のディレクターです。ク�
 - 一行の注記を足すのは doable にしてよい（「この下に小さく〜と記載」）
 - **同じ要素が繰り返し描画されている場合**（下に「N 個あり M 番目」と書かれているもの）は、テンプレートではなく**データ側の M 番目のエントリ**を直す指示にしてください。「テンプレートの {w.year} を直す」ではなく「作品データの M 番目（現在「令和6年」）の year を 2024 にする」のように書きます
 
-**画像の差し替えはここでは扱いません。** doable を false にし、reason に「画像の差し替えは素材を添付して別の経路で行う」と書いてください。`;
+**画像の差し替えはここでは扱いません。** doable を false にし、reason に「画像の差し替えは素材を添付して別の経路で行う」と書いてください。
+
+question の書き方:
+- **こちらでは決められない値がある場合だけ**書いてください。許可番号、電話番号、正式名称、どの写真か、など
+- **依頼した本人がそのまま読む文**です。制作会社の担当者が書いた一文として読めるように書いてください
+- 「情報が不足しています」ではなく「**派遣事業の許可番号をお教えいただけますか**」のように、何を答えればよいかが一読で分かる形にしてください
+- 敬体で、1〜2文。長く書かないこと
+- **「AI」「自動」「モデル」といった語は使わないでください**
+- 聞くことが無ければ空文字にしてください。分かることをわざわざ聞かないこと`;
 
 const PLAN_SCHEMA = {
   type: 'object',
@@ -71,8 +79,14 @@ const PLAN_SCHEMA = {
           reason: { type: 'string', description: 'doable が false のときの理由。true なら空文字' },
           instruction: { type: 'string', description: '何をどう直すか。1〜3文。値まで決めて書く' },
           targetHint: { type: 'string', description: '触りそうなファイル・セレクタ。分からなければ空文字' },
+          question: {
+            type: 'string',
+            description:
+              'こちらでは決められず、依頼した本人に聞くべきことがある場合の質問文。' +
+              '無ければ空文字。**クライアントがそのまま読む文**として書く',
+          },
         },
-        required: ['seq', 'doable', 'reason', 'instruction', 'targetHint'],
+        required: ['seq', 'doable', 'reason', 'instruction', 'targetHint', 'question'],
         additionalProperties: false,
       },
     },
@@ -88,6 +102,8 @@ export interface PlanResult {
   reason: string;
   instruction: string;
   targetHint: string;
+  /** クライアントに聞くべきこと。無ければ空文字 */
+  question: string;
 }
 
 /**
@@ -201,6 +217,7 @@ export async function generateInstructions(
       request_id: i.requestId,
       instruction: i.instruction,
       target_hint: i.targetHint || null,
+      question: i.question || null,
       doable: i.doable,
       reason: i.reason || null,
       status: i.doable ? 'draft' : 'skipped',

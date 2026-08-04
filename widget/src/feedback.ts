@@ -171,6 +171,51 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
       meta.appendChild(st);
       m.appendChild(meta);
       m.appendChild(el('div', 'bd2', r.body));
+
+      /*
+       * 確認したいこと。
+       *
+       * 許可番号や正式名称のように、**依頼文に無い値**はこちらでは
+       * 決められない。想像で埋めると事故になるので、出した本人に聞く。
+       * ここで答えてもらえれば、そのまま先に進める。
+       */
+      if (r.question) {
+        const q = el('div', 'ask');
+        q.appendChild(el('div', 'ask-h', '確認したいこと'));
+        q.appendChild(el('div', 'ask-b', r.question));
+
+        const ta = el('textarea', 'ask-i') as HTMLTextAreaElement;
+        ta.rows = 2;
+        ta.placeholder = 'こちらにお書きください';
+        q.appendChild(ta);
+
+        const send = el('button', 'ask-s', '送る') as HTMLButtonElement;
+        const note = el('span', 'ask-n', '');
+        send.onclick = async () => {
+          const v = ta.value.trim();
+          if (!v) {
+            note.textContent = '内容をお書きください';
+            return;
+          }
+          send.disabled = true;
+          note.textContent = '送っています…';
+          try {
+            await o.api.answerQuestion(r.id, v);
+            note.textContent = 'ありがとうございます';
+            data = await o.api.getRounds();
+            render();
+          } catch (e) {
+            send.disabled = false;
+            note.textContent = e instanceof Error ? e.message : '送れませんでした';
+          }
+        };
+        const foot = el('div', 'ask-f');
+        foot.appendChild(send);
+        foot.appendChild(note);
+        q.appendChild(foot);
+        m.appendChild(q);
+      }
+
       row.appendChild(m);
 
       bd.appendChild(row);
