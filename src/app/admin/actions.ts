@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auditedUpdate, logEvent } from '@/lib/events';
 import { newToken, sha256hex } from '@/lib/hash';
+import { getT } from '@/lib/i18n';
 import { notifyOnce, publishedMessage } from '@/lib/line';
 import { advanceRound, openRound } from '@/lib/rounds';
 import { refreshProjectTokens } from '@/lib/site-tokens-store';
@@ -22,6 +23,7 @@ export async function createProject(
   _prev: CreateProjectState,
   formData: FormData,
 ): Promise<CreateProjectState> {
+  const t = await getT();
   const user = await requireStaff();
 
   const name = String(formData.get('name') || '').trim();
@@ -34,13 +36,13 @@ export async function createProject(
   const directCommit = formData.get('allow_direct_commit') === 'on';
 
   if (!name || !clientName || !siteUrl || !snippetKey) {
-    return { error: 'すべての項目を入力してください' };
+    return { error: t('すべての項目を入力してください') };
   }
   let repoOwner: string | null = null;
   let repoName: string | null = null;
   if (repoFull) {
     const m = /^([^/\s]+)\/([^/\s]+)$/.exec(repoFull);
-    if (!m) return { error: 'リポジトリは owner/name の形式で指定してください' };
+    if (!m) return { error: t('リポジトリは owner/name の形式で指定してください') };
     [, repoOwner, repoName] = m;
   }
   let origin: string;
@@ -49,10 +51,10 @@ export async function createProject(
     if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error();
     origin = u.origin;
   } catch {
-    return { error: 'サイトURLは https://example.com の形式で入力してください' };
+    return { error: t('サイトURLは https://example.com の形式で入力してください') };
   }
   if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(snippetKey)) {
-    return { error: 'スニペットキーは英小文字・数字・ハイフンで指定してください' };
+    return { error: t('スニペットキーは英小文字・数字・ハイフンで指定してください') };
   }
 
   const db = adminDb();
@@ -74,7 +76,10 @@ export async function createProject(
 
   if (error || !data) {
     return {
-      error: error?.code === '23505' ? 'そのスニペットキーは既に使われています' : '作成に失敗しました',
+      error:
+        error?.code === '23505'
+          ? t('そのスニペットキーは既に使われています')
+          : t('作成に失敗しました'),
     };
   }
 
@@ -130,10 +135,11 @@ export interface InviteState {
 }
 
 export async function issueInvite(_prev: InviteState, formData: FormData): Promise<InviteState> {
+  const t = await getT();
   const user = await requireStaff();
   const projectId = String(formData.get('project_id') || '');
   const label = String(formData.get('label') || '').trim() || null;
-  if (!projectId) return { error: '案件が指定されていません' };
+  if (!projectId) return { error: t('案件が指定されていません') };
 
   const db = adminDb();
   const { data: project } = await db
@@ -141,7 +147,7 @@ export async function issueInvite(_prev: InviteState, formData: FormData): Promi
     .select('id, site_url')
     .eq('id', projectId)
     .maybeSingle();
-  if (!project) return { error: '案件が見つかりません' };
+  if (!project) return { error: t('案件が見つかりません') };
 
   const token = newToken();
   const tokenHash = sha256hex(token);
@@ -153,7 +159,7 @@ export async function issueInvite(_prev: InviteState, formData: FormData): Promi
     label,
     expires_at: expiresAt,
   });
-  if (error) return { error: '発行に失敗しました' };
+  if (error) return { error: t('発行に失敗しました') };
 
   await logEvent({
     projectId,
@@ -206,16 +212,17 @@ export async function saveProjectSettings(
   _prev: SettingsState,
   formData: FormData,
 ): Promise<SettingsState> {
+  const t = await getT();
   const user = await requireStaff();
   const projectId = String(formData.get('project_id') || '');
-  if (!projectId) return { error: '案件が指定されていません' };
+  if (!projectId) return { error: t('案件が指定されていません') };
 
   const repo = String(formData.get('repo') || '').trim();
   let repoOwner: string | null = null;
   let repoName: string | null = null;
   if (repo) {
     const m = /^([\w.-]+)\/([\w.-]+)$/.exec(repo);
-    if (!m) return { error: 'リポジトリは owner/name の形式で入力してください' };
+    if (!m) return { error: t('リポジトリは owner/name の形式で入力してください') };
     repoOwner = m[1];
     repoName = m[2];
   }
@@ -375,6 +382,7 @@ export async function updateRequestField(formData: FormData): Promise<void> {
  * 抽出は本番サイトの CSS を読むだけで、サイトには何も書き込まない。
  */
 export async function refreshTokens(formData: FormData): Promise<void> {
+  const t = await getT();
   const user = await requireStaff();
   const projectId = String(formData.get('project_id') || '');
   if (!projectId) return;
@@ -395,7 +403,7 @@ export async function refreshTokens(formData: FormData): Promise<void> {
     action: 'project.design_tokens_refreshed',
     after: tokens
       ? { colors: tokens.colors.length, fonts: tokens.fonts.length, vars: tokens.vars.length }
-      : { error: '取得できませんでした' },
+      : { error: t('取得できませんでした') },
   });
 
   revalidatePath(`/admin/projects/${projectId}`);

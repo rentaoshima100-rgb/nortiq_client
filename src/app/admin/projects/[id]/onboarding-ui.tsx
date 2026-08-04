@@ -26,7 +26,7 @@ export function Onboarding({ projectId, hasSiteUrl }: { projectId: string; hasSi
       const r = await fetch(`/api/admin/onboarding?projectId=${projectId}`);
       const text = await r.text();
       if (!r.ok) {
-        setErr(`確認できませんでした（${r.status}）`);
+        setErr(t('確認できませんでした（{status}）', { status: r.status }));
         return;
       }
       setRes(JSON.parse(text) as Result);
@@ -66,8 +66,7 @@ export function Onboarding({ projectId, hasSiteUrl }: { projectId: string; hasSi
         <>
           {!res.check.reachable && (
             <p className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              サイトに接続できませんでした。URL が正しいか、本番が公開されているか確認してください。
-              下の指示は「何も入っていない」前提で作っています。
+              {t('サイトに接続できませんでした。URL が正しいか、本番が公開されているか確認してください。下の指示は「何も入っていない」前提で作っています。')}
             </p>
           )}
 
@@ -99,7 +98,7 @@ export function Onboarding({ projectId, hasSiteUrl }: { projectId: string; hasSi
               <span className="text-xs text-slate-600">
                 {remaining === 0
                   ? t('すべて済んでいます。指示は不要です')
-                  : `エンジニアに渡す指示（残り ${remaining} 件ぶん）`}
+                  : t('エンジニアに渡す指示（残り {n} 件ぶん）', { n: remaining })}
               </span>
               <button onClick={copy} className="rounded border border-slate-300 px-2 py-1 text-xs">
                 {copied ? t('コピーしました') : t('コピー')}

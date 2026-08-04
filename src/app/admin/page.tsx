@@ -58,7 +58,7 @@ export default async function AdminHome() {
           </div>
         ) : (
           <p className="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">
-            まだ案件がありません
+            {t('まだ案件がありません')}
           </p>
         )}
       </section>

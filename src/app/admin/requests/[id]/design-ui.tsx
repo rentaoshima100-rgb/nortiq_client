@@ -33,12 +33,14 @@ export function ResearchPanel({ b }: { b: BatchView }) {
         </div>
       ) : (
         <p className="mb-3 text-xs text-slate-500">
-          依頼文に具体的な指定はありませんでした。構成は調査で見つけた実例に寄せています。
+          {t('依頼文に具体的な指定はありませんでした。構成は調査で見つけた実例に寄せています。')}
         </p>
       )}
 
       <button onClick={() => setOpen(!open)} className="text-sm text-slate-700 underline">
-        {open ? '調査結果を閉じる' : `調査結果を見る（参照 ${b.sources.length} 件）`}
+        {open
+          ? t('調査結果を閉じる')
+          : t('調査結果を見る（参照 {n} 件）', { n: b.sources.length })}
       </button>
 
       {open && (
@@ -87,7 +89,7 @@ export function GenerateButton({ requestId, again }: { requestId: string; again:
       const hint =
         r.status === 504
           ? t('時間内に終わりませんでした（504）')
-          : `サーバーが応答しませんでした（${r.status}）`;
+          : t('サーバーが応答しませんでした（{status}）', { status: r.status });
       return { ok: false, json: { error: `${hint}: ${text.slice(0, 120)}` } };
     }
   };
@@ -113,7 +115,11 @@ export function GenerateButton({ requestId, again }: { requestId: string; again:
       const bad = results.filter((r) => !r.ok);
       setMsg(
         bad.length
-          ? `${3 - bad.length}案できました（${bad.length}案は失敗: ${String(bad[0].json.error ?? '')}）`
+          ? t('{ok}案できました（{ng}案は失敗: {why}）', {
+              ok: 3 - bad.length,
+              ng: bad.length,
+              why: String(bad[0].json.error ?? ''),
+            })
           : null,
       );
       router.refresh();
@@ -178,11 +184,14 @@ function Preview({ id, title }: { id: string; title: string }) {
                 : 'rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100'
             }
           >
-            {wd.label}
+            {t(wd.label)}
           </button>
         ))}
         <span className="ml-auto text-xs text-slate-400">
-          {size.w}px 幅で描画 ／ {Math.round(scale * 100)}% 表示
+          {t('{w}px 幅で描画 ／ {scale}% 表示', {
+            w: size.w,
+            scale: Math.round(scale * 100),
+          })}
         </span>
       </div>
       <div
@@ -216,7 +225,7 @@ export function ProposalCard({ p }: { p: ProposalView }) {
       <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div className="flex items-baseline gap-2">
           <span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-700">
-            案{p.variant}・{p.direction}
+            {t('案{n}・{dir}', { n: p.variant, dir: p.direction })}
           </span>
           <h3 className="text-sm font-bold">{p.title}</h3>
         </div>
@@ -232,10 +241,10 @@ export function ProposalCard({ p }: { p: ProposalView }) {
           rel="noreferrer"
           className="text-slate-700 underline"
         >
-          実寸で開く
+          {t('実寸で開く')}
         </a>
         <a href={`/api/admin/design/${p.id}?dl=1`} className="text-slate-700 underline">
-          ダウンロード
+          {t('ダウンロード')}
         </a>
         <div className="ml-auto">
           <Implement proposalId={p.id} />
@@ -282,7 +291,11 @@ function Implement({ proposalId }: { proposalId: string }) {
       try {
         j = JSON.parse(text) as Record<string, unknown>;
       } catch {
-        setErr(r.status === 504 ? '時間内に終わりませんでした（504）' : `応答が不正です（${r.status}）`);
+        setErr(
+          r.status === 504
+            ? t('時間内に終わりませんでした（504）')
+            : t('応答が不正です（{status}）', { status: r.status }),
+        );
         return;
       }
       if (!j.ok) {
@@ -306,7 +319,7 @@ function Implement({ proposalId }: { proposalId: string }) {
   if (pr) {
     return (
       <a href={pr} target="_blank" rel="noreferrer" className="text-sm font-medium text-green-700 underline">
-        PR を出しました → 開く
+        {t('PR を出しました → 開く')}
       </a>
     );
   }
@@ -361,7 +374,7 @@ function Implement({ proposalId }: { proposalId: string }) {
             </div>
           </details>
           <p className="mt-2 text-xs text-slate-400">
-            PR を出すまでリポジトリは変わりません。自動マージはしません。
+            {t('PR を出すまでリポジトリは変わりません。自動マージはしません。')}
           </p>
         </div>
       )}

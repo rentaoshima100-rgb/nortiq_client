@@ -23,13 +23,6 @@ export interface FixRow {
   answer: string | null;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  draft: '下書き',
-  approved: '実行する',
-  applied: '反映済み',
-  skipped: '見送り',
-};
-
 /**
  * 修正指示の一覧。
  *
@@ -69,7 +62,9 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
         ok: false,
         json: {
           error:
-            res.status === 504 ? '時間内に終わりませんでした（504）' : `応答が不正です（${res.status}）`,
+            res.status === 504
+              ? t('時間内に終わりませんでした（504）')
+              : t('応答が不正です（{status}）', { status: res.status }),
         },
       };
     }
@@ -181,22 +176,25 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
         >
           {busy === 'apply'
             ? t('ソースを読んで書き換えています…')
-            : `選んだ ${picked.size} 件をまとめて実行して PR を出す`}
+            : t('選んだ {n} 件をまとめて実行して PR を出す', { n: picked.size })}
         </button>
         {msg && <span className="text-sm text-slate-600">{msg}</span>}
         {err && <span className="text-sm text-amber-700">{err}</span>}
         {prUrl && (
           <a href={prUrl} target="_blank" rel="noreferrer" className="text-sm text-green-700 underline">
-            PR を開く
+            {t('PR を開く')}
           </a>
         )}
       </div>
 
       {usage && (
         <p className="text-xs text-slate-500">
-          入力 {usage.input.toLocaleString()} / うちキャッシュから{' '}
-          {usage.cached.toLocaleString()} ・ 出力 {usage.output.toLocaleString()} トークン ≒{' '}
-          <b>{usage.yen}円</b>
+          {t('入力 {input} / うちキャッシュから {cached} ・ 出力 {output} トークン ≒ ', {
+            input: usage.input.toLocaleString(),
+            cached: usage.cached.toLocaleString(),
+            output: usage.output.toLocaleString(),
+          })}
+          <b>{t('{yen}円', { yen: usage.yen })}</b>
           {usage.cached > 0 && <span className="ml-2 text-green-700">{t('キャッシュが効いています')}</span>}
         </p>
       )}
@@ -224,7 +222,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
 
       {pending.length === 0 && (
         <p className="text-sm text-slate-500">
-          実行待ちの指示はありません。「未処理の依頼から指示を作る」を押してください。
+          {t('実行待ちの指示はありません。「未処理の依頼から指示を作る」を押してください。')}
         </p>
       )}
 
@@ -247,11 +245,11 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                  依頼 #{r.seq}
+                  {t('依頼 #{seq}', { seq: r.seq })}
                 </span>
                 {r.source === 'staff' && (
                   <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
-                    社内が直した
+                    {t('社内が直した')}
                   </span>
                 )}
               </div>
@@ -285,7 +283,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
               }}
               className="ml-auto text-xs text-slate-400 underline"
             >
-              見送る
+              {t('見送る')}
             </button>
           </div>
 
@@ -297,7 +295,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
                   <div className="text-xs font-bold text-blue-800">{t('クライアントの回答')}</div>
                   <p className="mt-1 whitespace-pre-wrap text-sm">{r.answer}</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    この内容で指示を作り直してください。
+                    {t('この内容で指示を作り直してください。')}
                   </p>
                 </>
               ) : r.asked ? (
@@ -309,7 +307,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
                     disabled={busy !== null}
                     className="mt-2 text-xs text-slate-500 underline"
                   >
-                    取り下げる
+                    {t('取り下げる')}
                   </button>
                 </>
               ) : (
@@ -329,7 +327,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
                     {busy === r.id ? t('出しています…') : t('この文でクライアントに出す')}
                   </button>
                   <p className="mt-1 text-xs text-slate-500">
-                    依頼者の画面に「確認したいこと」として出ます。文面は必ず読んでから出してください。
+                    {t('依頼者の画面に「確認したいこと」として出ます。文面は必ず読んでから出してください。')}
                   </p>
                 </>
               )}
@@ -340,7 +338,9 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
 
       {doneRows.length > 0 && (
         <details className="rounded-xl border border-slate-200 bg-white p-4">
-          <summary className="cursor-pointer text-sm font-bold">反映済み（{doneRows.length}）</summary>
+          <summary className="cursor-pointer text-sm font-bold">
+            {t('反映済み（{n}）', { n: doneRows.length })}
+          </summary>
           <ul className="mt-3 space-y-2">
             {doneRows.map((r) => (
               <li key={r.id} className="text-sm">
@@ -359,7 +359,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
       {skipped.length > 0 && (
         <details className="rounded-xl border border-slate-200 bg-white p-4">
           <summary className="cursor-pointer text-sm font-bold">
-            人が見るもの（{skipped.length}）
+            {t('人が見るもの（{n}）', { n: skipped.length })}
           </summary>
           <ul className="mt-3 space-y-2">
             {skipped.map((r) => (

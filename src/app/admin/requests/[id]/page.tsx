@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getT } from '@/lib/i18n';
+import { getT, type T } from '@/lib/i18n';
 import { notFound } from 'next/navigation';
 import { ATTACHMENTS_BUCKET, SNAPSHOTS_BUCKET } from '@/lib/env';
 import { describeTarget, positionInPage, siteViewUrl } from '@/lib/describe';
@@ -27,7 +27,7 @@ function fmt(iso: string): string {
  * 縦がページ全体（docHeight）、横がビューポート幅。青い矩形が指摘された要素。
  * Phase 1 のスナップショットが入るまで、社内が「どこ」を掴む唯一の手段になる。
  */
-function PositionMap({ loc }: { loc: Locator }) {
+function PositionMap({ loc, t }: { loc: Locator; t: T }) {
   const H = 200;
   const docH = Math.max(1, loc.docHeight);
   const vw = Math.max(1, loc.viewportW);
@@ -40,7 +40,7 @@ function PositionMap({ loc }: { loc: Locator }) {
     <div
       className="relative w-32 shrink-0 overflow-hidden rounded border border-slate-200 bg-slate-100"
       style={{ height: H }}
-      title={`ページ全体 ${docH}px 中 y=${loc.bbox.y}px`}
+      title={t('ページ全体 {docH}px 中 y={y}px', { docH, y: loc.bbox.y })}
     >
       <div
         className="absolute rounded-sm bg-blue-600/70 ring-2 ring-blue-600"
@@ -173,7 +173,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         >
           ← {project?.name ?? t('案件')}
         </Link>
-        <h1 className="mt-1 text-lg font-bold">依頼 #{req.seq}</h1>
+        <h1 className="mt-1 text-lg font-bold">{t('依頼 #{seq}', { seq: req.seq })}</h1>
       </div>
 
       {autoJob && (
@@ -207,7 +207,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               <code className="text-xs">{req.site_sha}</code>
             ) : (
               <span className="text-xs text-amber-600">
-                未取得（meta name=&quot;nq-sha&quot; がページに無い。9.3）
+                {t('未取得（meta name="nq-sha" がページに無い。9.3）')}
               </span>
             )}
           </Row>
@@ -224,7 +224,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               rel="noreferrer"
               className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
             >
-              サイトで見る →
+              {t('サイトで見る →')}
             </a>
           )}
         </div>
@@ -264,7 +264,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               })}
             </div>
             <p className="mt-1.5 text-xs text-slate-400">
-              全体撮影からピン座標で切り出したもの（7.1）。照合は{' '}
+              {t('全体撮影からピン座標で切り出したもの（7.1）。照合は')}{' '}
               <span
                 className={
                   shot?.match_tier === 'confirmed'
@@ -280,29 +280,40 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
                 t('（本文・画像の src・リンクの行き先・クラス込みの経路のいずれかで一つに決めています。nq-id を注入すると confirmed に上がります）')}
               {(shot?.match_tier === 'weak' || shot?.match_tier === 'stale') &&
                 t('（決め手が無く、経路と座標で当てています。別の要素を指している可能性があります）')}
-              {shots.length > 2 && ` ／ 撮影 ${shots.length} 回のうち直近2回を表示`}
+              {shots.length > 2 && t(' ／ 撮影 {n} 回のうち直近2回を表示', { n: shots.length })}
             </p>
           </div>
         )}
 
         <div className="flex gap-5">
-          <PositionMap loc={loc} />
+          <PositionMap loc={loc} t={t} />
           <div className="min-w-0 flex-1 space-y-1.5">
             <p className="text-sm font-medium">{describeTarget(loc, req.outer_html)}</p>
             <p className="text-xs text-slate-500">
-              {req.page_path} ／ {pos.label}（ページの上から {pos.percent}%）
+              {t('{path} ／ {where}（ページの上から {percent}%）', {
+                path: req.page_path,
+                where: t(pos.label),
+                percent: pos.percent,
+              })}
             </p>
             <p className="text-xs text-slate-500">
-              指摘時のビューポート {req.viewport_w}×{req.viewport_h} ／ スクロール位置{' '}
-              {req.scroll_y}px ／ ページ全体 {loc.docHeight}px
+              {t('指摘時のビューポート {w}×{h} ／ スクロール位置 {y}px ／ ページ全体 {docH}px', {
+                w: req.viewport_w,
+                h: req.viewport_h,
+                y: req.scroll_y,
+                docH: loc.docHeight,
+              })}
             </p>
             <p className="text-xs text-slate-400">
-              要素の大きさ {loc.bbox.w}×{loc.bbox.h}px（左から {loc.bbox.x}px・上から {loc.bbox.y}
-              px）
+              {t('要素の大きさ {w}×{h}px（左から {x}px・上から {y}px）', {
+                w: loc.bbox.w,
+                h: loc.bbox.h,
+                x: loc.bbox.x,
+                y: loc.bbox.y,
+              })}
             </p>
             <p className="pt-2 text-xs text-slate-400">
-              「サイトで見る」は、その箇所までスクロールしてピンを光らせます。開く側にも招待トークンが要るので、
-              持っていなければ案件画面で自分宛てに1本発行してください。
+              {t('「サイトで見る」は、その箇所までスクロールしてピンを光らせます。開く側にも招待トークンが要るので、持っていなければ案件画面で自分宛てに1本発行してください。')}
             </p>
           </div>
         </div>
@@ -330,11 +341,11 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
                 <div className="mt-2">
                   {att.kind === 'material' ? (
                     <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
-                      素材（差し替えたい）
+                      {t('素材（差し替えたい）')}
                     </span>
                   ) : (
                     <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
-                      参考イメージ → 仕様変更の候補
+                      {t('参考イメージ → 仕様変更の候補')}
                     </span>
                   )}
                 </div>
@@ -356,7 +367,10 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               <code>{loc.nqId}</code>
               {loc.nqCount && loc.nqCount > 1 ? (
                 <span className="ml-2 text-xs text-amber-600">
-                  同一 nq-id が {loc.nqCount} 個（序数 {loc.nqOrdinal}）— ループ描画
+                  {t('同一 nq-id が {n} 個（序数 {ordinal}）— ループ描画', {
+                    n: loc.nqCount,
+                    ordinal: loc.nqOrdinal,
+                  })}
                 </span>
               ) : (
                 <span className="ml-2 text-xs text-emerald-600">{t('文書内で一意')}</span>
@@ -386,7 +400,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               <code className="text-xs">{req.target.srcset ?? '—'}</code>
               {req.target.srcset && (
                 <div className="mt-1 text-xs text-amber-600">
-                  変種あり。差し替えは全変種が対象（9.10 手順1b）
+                  {t('変種あり。差し替えは全変種が対象（9.10 手順1b）')}
                 </div>
               )}
             </Row>
@@ -412,7 +426,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         </div>
 
         <h3 className="mb-2 mt-5 text-xs font-bold text-slate-500">
-          適用中のCSS（9.4・編集対象ではない）
+          {t('適用中のCSS（9.4・編集対象ではない）')}
         </h3>
         <div className="space-y-1">
           {((req.css_rules ?? []) as MatchedRule[]).map((r, i) => (
@@ -436,11 +450,11 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="text-sm font-bold">{t('参考デザイン')}</h2>
         <p className="mt-1 mb-4 text-xs leading-relaxed text-slate-500">
-          社内の検討用です。サイトには何も適用されません。
+          {t('社内の検討用です。サイトには何も適用されません。')}
           <br />
-          先に構成の似ている実例を調べ、その型に沿って3案作ります。施主の指定があればそちらが優先されます。
+          {t('先に構成の似ている実例を調べ、その型に沿って3案作ります。施主の指定があればそちらが優先されます。')}
           <br />
-          持ち帰って提示する前に、必ず中身を確認してください。
+          {t('持ち帰って提示する前に、必ず中身を確認してください。')}
         </p>
 
         <GenerateButton requestId={req.id} again={proposals.length > 0} />

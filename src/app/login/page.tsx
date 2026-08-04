@@ -26,7 +26,7 @@ export default async function LoginPage({
           <LoginForm notice={notice} />
         </div>
         <p className="mt-4 text-xs text-slate-400">
-          アカウントは Supabase の Authentication から発行します。
+          {t('アカウントは Supabase の Authentication から発行します。')}
         </p>
       </div>
     </main>

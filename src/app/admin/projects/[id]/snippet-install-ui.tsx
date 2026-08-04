@@ -52,7 +52,7 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
       const r = await fetch(url, init);
       const j = (await r.json()) as T & { error?: string };
       if (!r.ok) {
-        setErr(j.error ?? `失敗しました（${r.status}）`);
+        setErr(j.error ?? t('失敗しました（{status}）', { status: r.status }));
         return null;
       }
       return j;
@@ -104,9 +104,9 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
           {plan.installUrl && (
             <p className="mt-1">
               <a className="underline" href={plan.installUrl} target="_blank" rel="noreferrer">
-                インストール画面を開く
+                {t('インストール画面を開く')}
               </a>
-              — この1回だけはリポジトリの管理者による承認が必要です。
+              {t('— この1回だけはリポジトリの管理者による承認が必要です。')}
             </p>
           )}
         </div>
@@ -115,7 +115,9 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
       {plan && !plan.needsInstall && plan.plan && (
         <div className="mt-3 text-sm">
           <p className="text-slate-600">
-            構成: <code className="text-xs">{plan.plan.stack}</code> ／ 反映のしかた:{' '}
+            {t('構成: ')}
+            <code className="text-xs">{plan.plan.stack}</code>
+            {t(' ／ 反映のしかた: ')}
             <strong>{plan.mode === 'direct' ? t('直接コミット') : t('PR を出すだけ')}</strong>
             {plan.mode !== 'direct' && (
               <span className="text-slate-500">{t('（マージは先方が行います）')}</span>
@@ -147,21 +149,20 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
 
           {plan.plan.originCandidates.length > 0 && (
             <p className="mt-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-              リポジトリの HTML が名乗っているオリジン:{' '}
+              {t('リポジトリの HTML が名乗っているオリジン:')}{' '}
               {plan.plan.originCandidates.map((o) => (
                 <code key={o} className="mr-2">
                   {o}
                 </code>
               ))}
               <br />
-              登録済みのオリジンと違う場合、独自ドメインに切り替えた時点で依頼が送れなくなります。
-              両方登録しておいてください。
+              {t('登録済みのオリジンと違う場合、独自ドメインに切り替えた時点で依頼が送れなくなります。両方登録しておいてください。')}
             </p>
           )}
 
           {plan.plan.treeTruncated && (
             <p className="mt-2 text-xs text-amber-700">
-              リポジトリが大きく、ファイル一覧が GitHub 側で打ち切られました。挿入先の取りこぼしがある可能性があります。
+              {t('リポジトリが大きく、ファイル一覧が GitHub 側で打ち切られました。挿入先の取りこぼしがある可能性があります。')}
             </p>
           )}
 
@@ -193,7 +194,7 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  GitHub で開く
+                  {t('GitHub で開く')}
                 </a>
               </p>
               <p className="mt-1 text-xs text-slate-600">
@@ -229,7 +230,7 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
                 <strong>{t('本番に出ています。招待を送れます。')}</strong>
                 {deploy.live.nqIdCount > 0 && (
                   <span className="ml-2 text-xs">
-                    data-nq-id も {deploy.live.nqIdCount} 箇所入っています
+                    {t('data-nq-id も {n} 箇所入っています', { n: deploy.live.nqIdCount })}
                   </span>
                 )}
               </p>
@@ -240,13 +241,16 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
                 </p>
                 {deploy.deploy && (
                   <p className="mt-1 text-xs">
-                    デプロイ: {deploy.deploy.environment ?? '—'} / {deploy.deploy.state}
+                    {t('デプロイ: {env} / {state}', {
+                      env: deploy.deploy.environment ?? '—',
+                      state: deploy.deploy.state,
+                    })}
                   </p>
                 )}
                 {deploy.refUrl && (
                   <p className="mt-1 text-xs">
                     <a className="underline" href={deploy.refUrl} target="_blank" rel="noreferrer">
-                      出した PR / コミットを見る
+                      {t('出した PR / コミットを見る')}
                     </a>
                   </p>
                 )}

@@ -53,15 +53,20 @@ export default async function FixesPage({ params }: { params: Promise<{ id: stri
         </Link>
         <h1 className="mt-1 text-lg font-bold">{t('修正指示')}</h1>
         <p className="mt-1 text-xs leading-relaxed text-slate-500">
-          依頼ごとに「何をどう直すか」の指示だけを先に作ります。
+          {t('依頼ごとに「何をどう直すか」の指示だけを先に作ります。')}
           <b>{t('ここではまだリポジトリを触りません。')}</b>
-          指示を読んで、必要なら直して、実行するものを選んでください。
+          {t('指示を読んで、必要なら直して、実行するものを選んでください。')}
           <br />
-          選んだものを<b>{t('まとめて1回')}</b>投げたときに、初めてコードが変わり PR が出ます。
+          {t('選んだものを')}
+          <b>{t('まとめて1回')}</b>
+          {t('投げたときに、初めてコードが変わり PR が出ます。')}
           {project.repo_owner ? (
             <>
               {' '}
-              対象: <code>{project.repo_owner}/{project.repo_name}</code>
+              {t('対象: ')}
+              <code>
+                {project.repo_owner}/{project.repo_name}
+              </code>
             </>
           ) : (
             <span className="text-amber-700"> {t('リポジトリが未設定です。実行できません。')}</span>

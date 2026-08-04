@@ -68,7 +68,9 @@ export default async function VersionsPage({
   );
 
   const label = (s: Snap) =>
-    s.phase === 'initial' ? '公開時' : `ラウンド ${s.rounds?.seq ?? '?'} 完了`;
+    s.phase === 'initial'
+      ? t('公開時')
+      : t('ラウンド {seq} 完了', { seq: s.rounds?.seq ?? '?' });
 
   // 比較
   let comparison: { page: string; changed: number; added: number; removed: number }[] | null = null;
@@ -124,17 +126,16 @@ export default async function VersionsPage({
         </Link>
         <h1 className="mt-1 text-lg font-bold">{t('変更履歴')}</h1>
         <p className="text-sm text-slate-500">
-          ラウンドが確認済みになるたびに、その時点の撮影が1バージョンとして確定します。
-          比較に追加の撮影は要りません。
+          {t('ラウンドが確認済みになるたびに、その時点の撮影が1バージョンとして確定します。比較に追加の撮影は要りません。')}
         </p>
       </div>
 
       {versions.length < 1 ? (
         <p className="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-400">
-          まだバージョンがありません。
+          {t('まだバージョンがありません。')}
           <br />
           <span className="text-xs">
-            worker の snapshot.mjs で initial または after を撮ると出てきます。
+            {t('worker の snapshot.mjs で initial または after を撮ると出てきます。')}
           </span>
         </p>
       ) : (
@@ -154,7 +155,7 @@ export default async function VersionsPage({
                   )}
                   {i === versions.length - 1 && (
                     <span className="rounded-full bg-emerald-50 px-2 text-xs font-semibold text-emerald-700">
-                      最新
+                      {t('最新')}
                     </span>
                   )}
                 </div>
@@ -163,13 +164,13 @@ export default async function VersionsPage({
                     href={`?from=${s.id}&to=${to ?? versions[versions.length - 1].id}`}
                     className={from === s.id ? 'font-bold text-blue-700' : 'text-slate-500 hover:underline'}
                   >
-                    ここから
+                    {t('ここから')}
                   </Link>
                   <Link
                     href={`?from=${from ?? versions[0].id}&to=${s.id}`}
                     className={to === s.id ? 'font-bold text-blue-700' : 'text-slate-500 hover:underline'}
                   >
-                    ここまで
+                    {t('ここまで')}
                   </Link>
                 </div>
               </li>
@@ -182,15 +183,15 @@ export default async function VersionsPage({
         <section className="rounded-xl border border-slate-200 bg-white p-6">
           <h2 className="mb-1 text-sm font-bold">{t('比較')}</h2>
           <p className="mb-4 text-xs text-slate-500">
-            {COMPARE_VIEWPORT}px 幅のレイアウトマップで比較しています。
-            レイアウトシフトだけの移動（moved）は差分に数えません（7.4）。
+            {t('{w}px 幅のレイアウトマップで比較しています。', { w: COMPARE_VIEWPORT })}
+            {t('レイアウトシフトだけの移動（moved）は差分に数えません（7.4）。')}
           </p>
 
           {compareError && <p className="text-sm text-red-600">{compareError}</p>}
 
           {comparison && comparison.length === 0 && (
             <p className="text-sm text-slate-500">
-              比較できるページがありません（両方のバージョンに同じページの撮影が必要です）
+              {t('比較できるページがありません（両方のバージョンに同じページの撮影が必要です）')}
             </p>
           )}
 
@@ -212,17 +213,21 @@ export default async function VersionsPage({
                       <td className="py-2.5">
                         {total > 0 ? (
                           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
-                            変更あり
+                            {t('変更あり')}
                           </span>
                         ) : (
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-                            変更なし
+                            {t('変更なし')}
                           </span>
                         )}
                       </td>
                       <td className="py-2.5 text-xs text-slate-500">
                         {total > 0
-                          ? `変更 ${c.changed} / 追加 ${c.added} / 削除 ${c.removed}`
+                          ? t('変更 {changed} / 追加 {added} / 削除 {removed}', {
+                              changed: c.changed,
+                              added: c.added,
+                              removed: c.removed,
+                            })
                           : '—'}
                       </td>
                     </tr>

@@ -16,9 +16,10 @@ function walk(d) {
     .flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
 }
 
-const RE = /\bt\((['"])((?:[^'"\\]|\\.)*?)\1\)/g;
+// t('…') と t('…', {n}) の両方。サーバーアクション（.ts）も見る
+const RE = /\bt\((['"])((?:[^'"\\]|\\.)*?)\1\s*[,)]/g;
 const files = [...walk('src/app/admin'), ...walk('src/app/login')].filter((f) =>
-  f.endsWith('.tsx'),
+  /\.tsx?$/.test(f),
 );
 
 const keys = new Set();

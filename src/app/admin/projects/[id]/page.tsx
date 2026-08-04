@@ -190,7 +190,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     <div className="space-y-8">
       <div>
         <Link href="/admin" className="text-xs text-slate-400 hover:text-slate-600">
-          ← 案件一覧
+          {t('← 案件一覧')}
         </Link>
         <h1 className="mt-1 text-lg font-bold">{project.name}</h1>
         <p className="text-sm text-slate-500">
@@ -201,9 +201,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="text-sm font-bold">{t('サイト側の導入')}</h2>
         <p className="mb-4 mt-1 text-xs leading-relaxed text-slate-500">
-          本番サイトを見て、済んでいる作業を判定します。
-          残っているぶんだけを書いた指示文が出るので、そのままエンジニアに渡してください
-          （AI コーディングエージェントに貼っても動く形にしてあります）。
+          {t('本番サイトを見て、済んでいる作業を判定します。残っているぶんだけを書いた指示文が出るので、そのままエンジニアに渡してください（AI コーディングエージェントに貼っても動く形にしてあります）。')}
         </p>
 
         <Onboarding projectId={project.id} hasSiteUrl={!!project.site_url} />
@@ -221,7 +219,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             ? t('1時間ごとに動きます。待てないときはここから走らせてください（デバウンスを飛ばします）。')
             : t('この案件では自動反映を切っています。ここから押した場合だけ走ります。')}
           <br />
-          対象は文言と文字の大小・太さ・行間・字間・色だけです。
+          {t('対象は文言と文字の大小・太さ・行間・字間・色だけです。')}
           <b>{t('自動マージはしません。')}</b>
         </p>
         <div className="mb-4">
@@ -229,18 +227,20 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             href={`/admin/projects/${project.id}/fixes`}
             className="inline-block rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
           >
-            修正指示を見る・まとめて実行する →
+            {t('修正指示を見る・まとめて実行する →')}
           </Link>
           <p className="mt-2 text-xs leading-relaxed text-slate-500">
-            依頼ごとに指示だけを先に作り、社内が読んで直してから、
-            選んだものを<b>{t('まとめて1回')}</b>投げます。
-            ファイルの中身を1回しか送らないので費用が抑えられ、指示は差分より読みやすく直しやすい形です。
+            {t('依頼ごとに指示だけを先に作り、社内が読んで直してから、')}
+            {t('選んだものを')}
+            <b>{t('まとめて1回')}</b>
+            {t('投げます。')}
+            {t('ファイルの中身を1回しか送らないので費用が抑えられ、指示は差分より読みやすく直しやすい形です。')}
           </p>
         </div>
 
         <details>
           <summary className="cursor-pointer text-xs text-slate-500">
-            指示を経由せず、その場で当てる（従来の動き）
+            {t('指示を経由せず、その場で当てる（従来の動き）')}
           </summary>
           <div className="mt-3">
             <RunAutoText projectId={project.id} />
@@ -258,18 +258,17 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <div>
             <h2 className="text-sm font-bold">{t('設計トークン')}</h2>
             <p className="mt-1 text-xs leading-relaxed text-slate-500">
-              本番サイトの CSS から抜いた配色・書体・余白です。参考デザインを作るとき、
-              ここに載っている色と書体からしか選ばせません。
+              {t('本番サイトの CSS から抜いた配色・書体・余白です。参考デザインを作るとき、ここに載っている色と書体からしか選ばせません。')}
               {project.design_tokens_at ? (
                 <>
                   <br />
-                  取得: {fmt(project.design_tokens_at)}。
+                  {t('取得: {at}。', { at: fmt(project.design_tokens_at) })}
                   <strong>{t('サイトを作り直したら取り直してください。')}</strong>
                 </>
               ) : (
                 <>
                   <br />
-                  まだ取得していません。
+                  {t('まだ取得していません。')}
                 </>
               )}
             </p>
@@ -277,7 +276,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <form action={refreshTokens}>
             <input type="hidden" name="project_id" value={project.id} />
             <button className="whitespace-nowrap rounded-lg border border-slate-300 px-3 py-1.5 text-xs">
-              取り直す
+              {t('取り直す')}
             </button>
           </form>
         </div>
@@ -316,13 +315,15 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
               </div>
             )}
             <div className="text-slate-500">
-              文字サイズ {tokens.fontSizes.join(' ')} ／ 余白 {tokens.spacings.join(' ')}
+              {t('文字サイズ {sizes} ／ 余白 {spacings}', {
+                sizes: tokens.fontSizes.join(' '),
+                spacings: tokens.spacings.join(' '),
+              })}
             </div>
           </div>
         ) : (
           <p className="mt-4 text-xs text-amber-700">
-            取得できていません。サイト URL が正しいか、本番が公開されているか確認してください。
-            取得できないままでも案は作れますが、色と書体は依頼された要素の値からしか推定できません。
+            {t('取得できていません。サイト URL が正しいか、本番が公開されているか確認してください。取得できないままでも案は作れますが、色と書体は依頼された要素の値からしか推定できません。')}
           </p>
         )}
       </section>
@@ -330,8 +331,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="mb-1 text-sm font-bold">{t('クライアントの招待')}</h2>
         <p className="mb-4 text-xs text-slate-500">
-          トークンは sha256 でしか保存していないため、後から取り出すことはできません。
-          紛失したら新しく発行して古いものを失効させてください。
+          {t('トークンは sha256 でしか保存していないため、後から取り出すことはできません。紛失したら新しく発行して古いものを失効させてください。')}
         </p>
         <InviteIssuer projectId={project.id} />
 
@@ -371,7 +371,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                         <input type="hidden" name="project_id" value={project.id} />
                         <input type="hidden" name="token_hash" value={s.token_hash} />
                         <button className="rounded-md px-2 py-1 text-red-600 hover:bg-red-50">
-                          失効させる
+                          {t('失効させる')}
                         </button>
                       </form>
                     )}
@@ -391,16 +391,18 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
               href={`/admin/projects/${project.id}/versions`}
               className="text-xs font-semibold text-blue-700 hover:underline"
             >
-              変更履歴を見る →
+              {t('変更履歴を見る →')}
             </Link>
           </div>
 
           {unintendedCount > 0 && (
             <div className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <p className="font-bold">意図しない変更が {unintendedCount} 件あります</p>
+              <p className="font-bold">{t('意図しない変更が {n} 件あります', { n: unintendedCount })}</p>
               <p className="mt-1 text-xs">
-                ピン対象の自身・子孫・祖先のいずれでもない場所が変わっています。
-                中身を確認してください。<b>{t('クライアントには表示していません')}</b>（7.4）。
+                {t('ピン対象の自身・子孫・祖先のいずれでもない場所が変わっています。')}
+                {t('中身を確認してください。')}
+                <b>{t('クライアントには表示していません')}</b>
+                {t('（7.4）。')}
               </p>
             </div>
           )}
@@ -446,12 +448,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         <section className="rounded-xl border border-slate-200 bg-white p-6">
           <h2 className="mb-1 text-sm font-bold">{t('ラウンド')}</h2>
           <p className="text-sm text-slate-500">
-            この案件は<b>{t('ラウンド制を使わない設定')}</b>です。締切・無償回数のカウント・確認の
-            やりとりは行いません。依頼は下の一覧に貯まり続け、進捗は依頼ごとの状態で管理します。
+            {t('この案件は')}
+            <b>{t('ラウンド制を使わない設定')}</b>
+            {t('です。締切・無償回数のカウント・確認のやりとりは行いません。依頼は下の一覧に貯まり続け、進捗は依頼ごとの状態で管理します。')}
           </p>
           <p className="mt-2 text-xs text-slate-400">
-            撮影・差分・素材差し替えはこの設定に関係なく動きます。
-            案件設定の「ラウンド制を使う」で切り替えられます。
+            {t('撮影・差分・素材差し替えはこの設定に関係なく動きます。案件設定の「ラウンド制を使う」で切り替えられます。')}
           </p>
         </section>
       ) : (
@@ -459,7 +461,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         <div className="mb-4 flex items-baseline justify-between">
           <h2 className="text-sm font-bold">{t('ラウンド')}</h2>
           <div className="text-xs text-slate-500">
-            無償修正{' '}
+            {t('無償修正')}{' '}
             <span
               className={
                 usedFree >= project.free_rounds
@@ -469,7 +471,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             >
               {usedFree} / {project.free_rounds}
             </span>{' '}
-            使用
+            {t('使用')}
             {usedFree >= project.free_rounds && t('（以降は有償）')}
           </div>
         </div>
@@ -477,18 +479,18 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         {active ? (
           <div className="rounded-lg border border-slate-200 p-4">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-base font-bold">ラウンド {active.seq}</span>
+              <span className="text-base font-bold">{t('ラウンド {seq}', { seq: active.seq })}</span>
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                {jaStatus(active.status)}
+                {t(jaStatus(active.status))}
               </span>
               {!active.counts_free && (
                 <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
-                  有償（カウント外）
+                  {t('有償（カウント外）')}
                 </span>
               )}
               {active.reject_count > 0 && (
                 <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
-                  差し戻し {active.reject_count} 回
+                  {t('差し戻し {n} 回', { n: active.reject_count })}
                 </span>
               )}
             </div>
@@ -496,15 +498,26 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             <div className="mt-2 space-y-0.5 text-xs text-slate-500">
               {active.status === 'open' && (
                 <p>
-                  受付中 ／ あと {daysUntil(active.freeze_due_at) ?? '—'} 日 新規依頼が無ければ自動で締切
-                  ／ 上限 {project.max_items_per_round} 件で即時締切
+                  {t(
+                    '受付中 ／ あと {days} 日 新規依頼が無ければ自動で締切 ／ 上限 {max} 件で即時締切',
+                    { days: daysUntil(active.freeze_due_at) ?? '—', max: project.max_items_per_round },
+                  )}
                 </p>
               )}
-              {active.frozen_at && <p>締切: {fmt(active.frozen_at)}（{jaFreezeReason(active.freeze_reason)}）</p>}
+              {active.frozen_at && (
+                <p>
+                  {t('締切: {at}（{reason}）', {
+                    at: fmt(active.frozen_at),
+                    reason: t(jaFreezeReason(active.freeze_reason)),
+                  })}
+                </p>
+              )}
               {active.published_at && (
                 <p>
-                  公開: {fmt(active.published_at)} ／ 自動確認まで あと{' '}
-                  {daysUntil(active.confirm_due_at) ?? '—'} 日
+                  {t('公開: {at} ／ 自動確認まで あと {days} 日', {
+                    at: fmt(active.published_at),
+                    days: daysUntil(active.confirm_due_at) ?? '—',
+                  })}
                 </p>
               )}
             </div>
@@ -540,8 +553,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
             {active.status === 'in_progress' && (
               <p className="mt-3 text-xs text-slate-400">
-                公開はクライアントへの確認依頼を意味します。Phase 1 以降は、ここに
-                「全ジョブが終端」「差分に intended=false が無い」という条件が加わります（9.8）。
+                {t('公開はクライアントへの確認依頼を意味します。Phase 1 以降は、ここに')}
+                {t('「全ジョブが終端」「差分に intended=false が無い」という条件が加わります（9.8）。')}
               </p>
             )}
           </div>
@@ -550,13 +563,15 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             <p className="text-sm text-slate-500">{t('進行中のラウンドはありません')}</p>
             {(carriedOver ?? 0) > 0 && (
               <p className="mt-1 text-xs text-amber-700">
-                持ち越しの依頼が {carriedOver} 件あります。ラウンドを開くと引き取ります。
+                {t('持ち越しの依頼が {n} 件あります。ラウンドを開くと引き取ります。', {
+                  n: carriedOver,
+                })}
               </p>
             )}
             <form action={roundOpen} className="mt-3">
               <input type="hidden" name="project_id" value={project.id} />
               <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-                ラウンドを開く
+                {t('ラウンドを開く')}
               </button>
             </form>
           </div>
@@ -578,7 +593,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
               {rounds.map((r) => (
                 <tr key={r.id} className="border-t border-slate-100">
                   <td className="py-2 tabular-nums">{r.seq}</td>
-                  <td className="py-2">{jaStatus(r.status)}</td>
+                  <td className="py-2">{t(jaStatus(r.status))}</td>
                   <td className="py-2">
                     {r.counts_free ? (
                       <span className="text-slate-600">{t('無償に算入')}</span>
@@ -605,7 +620,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
       <section>
         <h2 className="mb-3 text-sm font-bold">
-          修正依頼 <span className="text-slate-400">（{requests?.length ?? 0}件）</span>
+          {t('修正依頼')}{' '}
+          <span className="text-slate-400">{t('（{n}件）', { n: requests?.length ?? 0 })}</span>
         </h2>
         {requests && requests.length > 0 ? (
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -654,7 +670,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                               target="_blank"
                               rel="noreferrer"
                               className="shrink-0"
-                              title={`指摘箇所の切り出し（照合 ${c?.tier}）`}
+                              title={t('指摘箇所の切り出し（照合 {tier}）', { tier: c?.tier })}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
@@ -684,7 +700,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                               {r.body.length > 60 ? r.body.slice(0, 60) + '…' : r.body}
                             </Link>
                             <span className="ml-1 whitespace-nowrap text-xs text-blue-700">
-                              詳細・参考デザイン →
+                              {t('詳細・参考デザイン →')}
                             </span>
                             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
                               <span>{fmt(r.created_at)}</span>
@@ -709,13 +725,18 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                           {describeTarget(loc, r.outer_html)}
                         </div>
                         <div className="mt-0.5">
-                          {r.page_path} ／ {pos.label}（上から {pos.percent}%）
+                          {t('{path} ／ {where}（上から {percent}%）', {
+                            path: r.page_path,
+                            where: t(pos.label),
+                            percent: pos.percent,
+                          })}
                         </div>
                         <div className="text-slate-400">
                           {loc?.tag?.toLowerCase()}
                           {loc?.nqId ? ` · ${loc.nqId}` : ''}
                           {loc?.nqCount && loc.nqCount > 1 ? `[${loc.nqOrdinal}/${loc.nqCount}]` : ''}
-                          {` · ${r.viewport_w}px幅で指摘`}
+                          {' · '}
+                          {t('{w}px幅で指摘', { w: r.viewport_w })}
                         </div>
                         <a
                           href={siteViewUrl(project.site_url, r.page_path, r.seq)}
@@ -723,7 +744,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                           rel="noreferrer"
                           className="mt-1 inline-block font-medium text-blue-700 hover:underline"
                         >
-                          サイトで見る →
+                          {t('サイトで見る →')}
                         </a>
                       </td>
                       <td className="px-3 py-3">
@@ -758,7 +779,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           </div>
         ) : (
           <p className="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">
-            まだ依頼がありません
+            {t('まだ依頼がありません')}
           </p>
         )}
       </section>

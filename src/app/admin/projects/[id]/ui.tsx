@@ -98,8 +98,9 @@ export function InviteIssuer({ projectId }: { projectId: string }) {
     <div className="space-y-3">
       {ready && ready.canInvite && (
         <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-          本番にスニペットが出ています。招待を送れます。
-          {ready.live.nqIdCount > 0 && `（data-nq-id も ${ready.live.nqIdCount} 箇所）`}
+          {t('本番にスニペットが出ています。招待を送れます。')}
+          {ready.live.nqIdCount > 0 &&
+            t('（data-nq-id も {n} 箇所）', { n: ready.live.nqIdCount })}
         </p>
       )}
 
@@ -110,13 +111,16 @@ export function InviteIssuer({ projectId }: { projectId: string }) {
           </p>
           {ready.deploy && (
             <p className="mt-1">
-              デプロイ: {ready.deploy.environment ?? '—'} / {ready.deploy.state}
+              {t('デプロイ: {env} / {state}', {
+                env: ready.deploy.environment ?? '—',
+                state: ready.deploy.state,
+              })}
             </p>
           )}
           <p className="mt-1 flex flex-wrap items-center gap-3">
             {ready.refUrl && (
               <a className="underline" href={ready.refUrl} target="_blank" rel="noreferrer">
-                出した PR / コミットを見る
+                {t('出した PR / コミットを見る')}
               </a>
             )}
             <button type="button" onClick={() => void check()} className="underline">
@@ -128,7 +132,7 @@ export function InviteIssuer({ projectId }: { projectId: string }) {
                 checked={override}
                 onChange={(e) => setOverride(e.target.checked)}
               />
-              それでも発行する
+              {t('それでも発行する')}
             </label>
           </p>
         </div>
@@ -155,7 +159,7 @@ export function InviteIssuer({ projectId }: { projectId: string }) {
       {state.url && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
           <p className="mb-2 text-xs font-semibold text-amber-800">
-            このリンクは今この画面にしか出ません。閉じると二度と表示できません。
+            {t('このリンクは今この画面にしか出ません。閉じると二度と表示できません。')}
           </p>
           <div className="flex gap-2">
             <input
@@ -168,12 +172,11 @@ export function InviteIssuer({ projectId }: { projectId: string }) {
               onClick={() => navigator.clipboard.writeText(state.url as string)}
               className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
             >
-              コピー
+              {t('コピー')}
             </button>
           </div>
           <p className="mt-2 text-xs text-amber-700">
-            LINE でこのリンクを送ってください。開いた時点でトークンが端末に保存され、
-            URL からは自動で消えます。
+            {t('LINE でこのリンクを送ってください。開いた時点でトークンが端末に保存され、URL からは自動で消えます。')}
           </p>
         </div>
       )}
@@ -220,16 +223,16 @@ export function ProjectSettings({
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">
-            GitHub リポジトリ
+            {t('GitHub リポジトリ')}
           </label>
           <input name="repo" defaultValue={repo} placeholder="owner/name" className={FIELD} />
           <p className="mt-1 text-xs text-slate-400">
-            GitHub App がこのリポジトリにインストールされている必要があります
+            {t('GitHub App がこのリポジトリにインストールされている必要があります')}
           </p>
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">
-            追加で許可するオリジン
+            {t('追加で許可するオリジン')}
           </label>
           <input
             name="extra_origins"
@@ -238,17 +241,16 @@ export function ProjectSettings({
             className={FIELD}
           />
           <p className="mt-1 text-xs text-slate-400">
-            独自ドメインへの切り替え期間は、旧・新の両方をここに入れておきます。
-            入っていないオリジンからは依頼を送れません（ワイルドカードは使えません）。
+            {t('独自ドメインへの切り替え期間は、旧・新の両方をここに入れておきます。入っていないオリジンからは依頼を送れません（ワイルドカードは使えません）。')}
           </p>
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">
-            LINE の送り先（ユーザーID / グループID）
+            {t('LINE の送り先（ユーザーID / グループID）')}
           </label>
           <input name="line_to" defaultValue={project.line_to ?? ''} placeholder={t("U1234... 未設定なら通知しない")} className={FIELD} />
           <p className="mt-1 text-xs text-slate-400">
-            公開通知・確認リマインド・締切予告を送ります（11.1）
+            {t('公開通知・確認リマインド・締切予告を送ります（11.1）')}
           </p>
         </div>
         <div>
@@ -262,9 +264,9 @@ export function ProjectSettings({
               className="mt-0.5"
             />
             <span>
-              このブランチに直接コミットする
+              {t('このブランチに直接コミットする')}
               <span className="block text-slate-400">
-                外すと PR を出すだけ。他人のリポジトリでは外したままにしてください
+                {t('外すと PR を出すだけ。他人のリポジトリでは外したままにしてください')}
               </span>
             </span>
           </label>
@@ -298,9 +300,7 @@ export function ProjectSettings({
           <span>
             <b>{t('ラウンド制を使う')}</b>
             <span className="block text-xs text-slate-500">
-              外すと、締切・無償回数のカウント・確認のやりとりを行いません。
-              依頼は貯まり続け、進捗は依頼ごとの状態で管理します。
-              撮影・差分・素材差し替えはどちらでも動きます。
+              {t('外すと、締切・無償回数のカウント・確認のやりとりを行いません。依頼は貯まり続け、進捗は依頼ごとの状態で管理します。撮影・差分・素材差し替えはどちらでも動きます。')}
             </span>
           </span>
         </label>
@@ -309,7 +309,7 @@ export function ProjectSettings({
           <span>
             <b>{t('nq-id が注入されている')}</b>
             <span className="block text-xs text-slate-500">
-              tools/nq-inject を prebuild に入れてある場合。ロケータが段1で当たるようになります（6.6）
+              {t('tools/nq-inject を prebuild に入れてある場合。ロケータが段1で当たるようになります（6.6）')}
             </span>
           </span>
         </label>
@@ -323,7 +323,7 @@ export function ProjectSettings({
           <span>
             <b>{t('素材差し替えを有効にする（Phase 3a）')}</b>
             <span className="block text-xs text-slate-500">
-              決定的処理で LLM を使いません。ZDR の取得を待たずに使えます（9.10・13.3）
+              {t('決定的処理で LLM を使いません。ZDR の取得を待たずに使えます（9.10・13.3）')}
             </span>
           </span>
         </label>
@@ -332,12 +332,12 @@ export function ProjectSettings({
           <span>
             <b>{t('文言・文字まわりを自動で反映する')}</b>
             <span className="block text-xs text-slate-500">
-              「この一文を直して」「ここの文字を大きく」を、人手を介さずリポジトリに当てて
-              PR を出します。1時間ごとに動きます。<b>{t('自動マージはしません。')}</b>
+              {t('「この一文を直して」「ここの文字を大きく」を、人手を介さずリポジトリに当てて')}
+              {t('PR を出します。1時間ごとに動きます。')}
+              <b>{t('自動マージはしません。')}</b>
             </span>
             <span className="block text-xs text-amber-700">
-              対象は文言と文字の大小・太さ・行間・字間・色だけ。要素の増減・並べ替え・
-              不具合は人が見ます。判断に迷った依頼も人に回します。
+              {t('対象は文言と文字の大小・太さ・行間・字間・色だけ。要素の増減・並べ替え・不具合は人が見ます。判断に迷った依頼も人に回します。')}
             </span>
           </span>
         </label>
@@ -382,9 +382,11 @@ export function FieldSelect({
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
         className={SELECT}
       >
+        {/* ラベルは日本語のまま持っておき、出すときに訳す。
+            辞書の鍵が日本語なので、t(label) がそのまま引ける */}
         {options.map(([v, label]) => (
           <option key={v} value={v}>
-            {label}
+            {t(label)}
           </option>
         ))}
       </select>

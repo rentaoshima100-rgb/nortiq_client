@@ -5,10 +5,10 @@
  * クライアントから辿られると落ちるので、分けてある。
  */
 import { cookies } from 'next/headers';
-import { LOCALE_COOKIE, translate, type Locale, type T } from './i18n-core';
+import { LOCALE_COOKIE, translate, type Locale, type T, type Vars } from './i18n-core';
 
 export { LOCALE_COOKIE, translate };
-export type { Locale, T };
+export type { Locale, T, Vars };
 
 export async function getLocale(): Promise<Locale> {
   const c = await cookies();
@@ -17,5 +17,5 @@ export async function getLocale(): Promise<Locale> {
 
 export async function getT(): Promise<T> {
   const locale = await getLocale();
-  return (ja: string) => translate(locale, ja);
+  return (ja, vars) => translate(locale, ja, vars);
 }

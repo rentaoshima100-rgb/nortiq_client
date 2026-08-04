@@ -1,6 +1,6 @@
 'use client';
 
-import { useT } from '@/lib/i18n-client';
+import { useLocale, useT } from '@/lib/i18n-client';
 
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
@@ -51,7 +51,7 @@ export function StaffAttach({ requestId }: { requestId: string }) {
         body: f,
       });
       if (!put.ok) {
-        setErr(`アップロードに失敗しました（${put.status}）`);
+        setErr(t('アップロードに失敗しました（{status}）', { status: put.status }));
         return;
       }
       if (file.current) file.current.value = '';
@@ -91,8 +91,7 @@ export function StaffAttach({ requestId }: { requestId: string }) {
         {err && <span className="text-xs text-amber-700">{err}</span>}
       </div>
       <p className="mt-2 text-xs text-slate-400">
-        「素材」を選ぶと、この案件で画像差し替えが有効なとき、差し替えの対象になります。
-        イメージを伝えるだけの画像は「参考」にしてください。
+        {t('「素材」を選ぶと、この案件で画像差し替えが有効なとき、差し替えの対象になります。イメージを伝えるだけの画像は「参考」にしてください。')}
       </p>
     </div>
   );
@@ -137,7 +136,7 @@ export function AutoFixMark({ job }: { job: AutoJob }) {
             rel="noreferrer"
             className="text-sm text-slate-700 underline"
           >
-            PR {job.pr_number ? `#${job.pr_number}` : ''} を開く
+            {t('PR {num} を開く', { num: job.pr_number ? `#${job.pr_number}` : '' })}
           </a>
         )}
       </div>
@@ -176,7 +175,11 @@ export function RunAutoText({ projectId }: { projectId: string }) {
       try {
         j = JSON.parse(text) as typeof out;
       } catch {
-        setErr(res.status === 504 ? '時間内に終わりませんでした（504）' : `応答が不正です（${res.status}）`);
+        setErr(
+          res.status === 504
+            ? t('時間内に終わりませんでした（504）')
+            : t('応答が不正です（{status}）', { status: res.status }),
+        );
         return;
       }
       setOut(j);
@@ -202,7 +205,7 @@ export function RunAutoText({ projectId }: { projectId: string }) {
         {out && !err && <span className="text-xs text-slate-600">{out.message}</span>}
         {out?.prUrl && (
           <a href={out.prUrl} target="_blank" rel="noreferrer" className="text-xs text-green-700 underline">
-            PR を開く
+            {t('PR を開く')}
           </a>
         )}
       </div>
@@ -273,7 +276,9 @@ export function FixThisRequest({
         setOut(JSON.parse(text) as typeof out);
       } catch {
         setErr(
-          res.status === 504 ? '時間内に終わりませんでした（504）' : `応答が不正です（${res.status}）`,
+          res.status === 504
+            ? t('時間内に終わりませんでした（504）')
+            : t('応答が不正です（{status}）', { status: res.status }),
         );
         return;
       }
@@ -290,9 +295,7 @@ export function FixThisRequest({
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6">
       {/*
-        依頼文だけでは足りないことがある。値を持っているのは社内で、
-        クライアントは「許可番号を入れて」としか書かない。
-        ここに書いたものは依頼文より優先される。
+        {t('依頼文だけでは足りないことがある。値を持っているのは社内で、クライアントは「許可番号を入れて」としか書かない。ここに書いたものは依頼文より優先される。')}
       */}
       <label className="mb-3 block">
         <span className="text-xs font-medium text-slate-600">{t('補足の指示（任意）')}</span>
@@ -304,7 +307,7 @@ export function FixThisRequest({
           className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
         />
         <span className="mt-1 block text-xs text-slate-400">
-          依頼文に無い値や、外してほしくない条件をここに書いてください。**依頼文より優先されます。**
+          {t('依頼文に無い値や、外してほしくない条件をここに書いてください。**依頼文より優先されます。**')}
         </span>
       </label>
 
@@ -317,7 +320,7 @@ export function FixThisRequest({
           {busy ? t('ソースを読んでいます…') : t('この依頼を直させる')}
         </button>
         <span className="text-xs text-slate-500">
-          文言と文字まわりだけ。PR を出すところまで行います。
+          {t('文言と文字まわりだけ。PR を出すところまで行います。')}
           <b>{t('自動マージはしません。')}</b>
         </span>
         {err && <span className="text-sm text-amber-700">{err}</span>}
@@ -350,12 +353,11 @@ export function FixThisRequest({
               rel="noreferrer"
               className="mt-2 inline-block text-sm text-green-700 underline"
             >
-              PR を開く
+              {t('PR を開く')}
             </a>
           )}
           <p className="mt-2 text-xs text-slate-400">
-            当てられなかった理由は、材料が足りないことがほとんどです。
-            対象がリポジトリに無い、値が依頼文に書かれていない、など。
+            {t('当てられなかった理由は、材料が足りないことがほとんどです。対象がリポジトリに無い、値が依頼文に書かれていない、など。')}
           </p>
         </div>
       )}
@@ -385,6 +387,7 @@ export function AskClient({
   answeredAt: string | null;
 }) {
   const t = useT();
+  const locale = useLocale();
   const router = useRouter();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -401,7 +404,7 @@ export function AskClient({
       });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
-        setErr(j.error ?? `失敗しました（${res.status}）`);
+        setErr(j.error ?? t('失敗しました（{status}）', { status: res.status }));
         return;
       }
       setText('');
@@ -417,14 +420,20 @@ export function AskClient({
     <div className="rounded-xl border border-slate-200 bg-white p-6">
       <h2 className="text-sm font-bold">{t('クライアントに確認する')}</h2>
       <p className="mt-1 text-xs leading-relaxed text-slate-500">
-        依頼だけでは決められないこと（番号、正式名称、どの写真か）を、出した本人に聞けます。
-        依頼者のパネルに<b>{t('「保留中」')}</b>として出ます。
+        {t('依頼だけでは決められないこと（番号、正式名称、どの写真か）を、出した本人に聞けます。')}
+        {t('依頼者のパネルに')}
+        <b>{t('「保留中」')}</b>
+        {t('として出ます。')}
       </p>
 
       {answer ? (
         <div className="mt-4 rounded-lg border-l-4 border-green-600 bg-green-50 px-3 py-2">
           <div className="text-xs font-bold text-green-800">
-            回答がありました{answeredAt ? `（${new Date(answeredAt).toLocaleString('ja-JP')}）` : ''}
+            {answeredAt
+              ? t('回答がありました（{at}）', {
+                  at: new Date(answeredAt).toLocaleString(locale === 'en' ? 'en-US' : 'ja-JP'),
+                })
+              : t('回答がありました')}
           </div>
           <p className="mt-1 whitespace-pre-wrap text-sm">{answer}</p>
         </div>
@@ -462,8 +471,7 @@ export function AskClient({
             {err && <span className="text-sm text-amber-700">{err}</span>}
           </div>
           <p className="mt-2 text-xs text-slate-400">
-            相手がそのまま読む文です。何を答えればよいかが一読で分かる形で書いてください。
-            「情報が不足しています」ではなく「許可番号をお教えいただけますか」。
+            {t('相手がそのまま読む文です。何を答えればよいかが一読で分かる形で書いてください。「情報が不足しています」ではなく「許可番号をお教えいただけますか」。')}
           </p>
         </div>
       )}

@@ -46,7 +46,7 @@ export function NewProjectForm() {
       </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-slate-600">
-          サイトURL（本番のオリジン）
+          {t('サイトURL（本番のオリジン）')}
         </label>
         <input
           name="site_url"
@@ -56,7 +56,7 @@ export function NewProjectForm() {
           className={input}
         />
         <p className="mt-1 text-xs text-slate-400">
-          CORS の許可オリジンになります。パスは無視されます。
+          {t('CORS の許可オリジンになります。パスは無視されます。')}
         </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -75,7 +75,7 @@ export function NewProjectForm() {
       </div>
       <div className="sm:col-span-2">
         <label className="mb-1 block text-xs font-medium text-slate-600">
-          リポジトリ（任意）
+          {t('リポジトリ（任意）')}
         </label>
         <select name="repo" defaultValue="" className={input}>
           <option value="">{t('選ばない（サイト側は手で入れる）')}</option>
@@ -102,15 +102,15 @@ export function NewProjectForm() {
                 target="_blank"
                 rel="noreferrer"
               >
-                GitHub App を入れる
+                {t('GitHub App を入れる')}
               </a>
-              — この1回だけはリポジトリの管理者の承認が必要です。
+              {t('— この1回だけはリポジトリの管理者の承認が必要です。')}
             </>
           )}
         </p>
         <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
           <input type="checkbox" name="allow_direct_commit" />
-          既定のブランチに直接コミットする（外すと PR を出すだけ。他人のリポジトリでは外したまま）
+          {t('既定のブランチに直接コミットする（外すと PR を出すだけ。他人のリポジトリでは外したまま）')}
         </label>
       </div>
 

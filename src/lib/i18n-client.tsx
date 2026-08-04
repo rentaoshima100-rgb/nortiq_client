@@ -19,7 +19,7 @@ export function LocaleProvider({
 /** クライアントコンポーネント用。呼び方はサーバー側と同じ t(ja) */
 export function useT(): T {
   const locale = useContext(Ctx);
-  return (ja: string) => translate(locale, ja);
+  return (ja, vars) => translate(locale, ja, vars);
 }
 
 export function useLocale(): Locale {
