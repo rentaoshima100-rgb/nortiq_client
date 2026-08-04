@@ -19,6 +19,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { github, githubConfigured, installationFor } from '@/lib/github-client';
 import { adminDb } from '@/lib/supabase/admin';
 import { logEvent, type Actor } from '@/lib/events';
+import { tokensText } from '@/lib/site-tokens.mjs';
+import type { SiteTokens } from '@/lib/site-tokens-store';
 
 const MODEL = 'claude-opus-5';
 const SYSTEM_ACTOR: Actor = { type: 'system', id: 'auto-text' };
@@ -59,26 +61,41 @@ function count(hay: string, needle: string): number {
 
 const CLASSIFY_SYSTEM = `あなたは制作会社のディレクターです。クライアントから来た修正依頼を仕分けします。
 
-**自動で直してよいものだけを minor にしてください。** ここで通したものは人手を介さずコードが書き換わり、PR として出ます。迷ったら unclassified にしてください。人が見ます。**取りこぼしは安全ですが、通しすぎは事故になります。**
+**前提を取り違えないでください。**
+
+1. **入ってくる文は、必ず「直してほしいこと」です。** クライアントは本番サイト上で要素をクリックし、修正依頼のフォームから送っています。感想や独り言ではありません。**指摘は指示として読んでください。**
+   - 「小さい」→ 大きくしてほしい
+   - 「読みにくい」→ 読みやすくしてほしい
+   - 「違うイメージ写真がよい」→ この画像を差し替えてほしい
+
+2. **どの要素の話かは、すでに決まっています。** クリックされた要素を一緒に渡します。「対象が複数あって分からない」とは考えないでください。**渡された要素が対象です。**
+
+3. **依頼文はたいてい断片です。** 文になっていないのが普通です。「イメージ写真」「貝塚　亜起良」のような短い語だけのこともあります。
+   - 文字の要素に語句だけ → **その語句に差し替えてほしい**（text）
+   - 画像の要素に「イメージ写真」 → **この画像を差し替えてほしい**（asset）
+
+4. **具体的な数値は求めないでください。** 「大きく」で十分です。何 px にするかは実装側が、そのサイトの既存の刻みから選びます。**数値が書かれていないことを理由に自信を下げないでください。**
 
 category:
-- minor    文言の言い換え、誤字、文字の大小・太さ・行間・字間の調整。**元からある要素の中身や見え方を変えるだけ**のもの
-- spec_change  要素の追加・削除・並べ替え、機能の変更、ページの追加。「〜を増やして」「〜を無くして」「〜の順番を」
-- defect   表示崩れ、動かない、リンク切れ。「ずれている」「押せない」「表示されない」
-- unclassified  上のどれか判断がつかない。**曖昧な表現、複数のことを同時に言っている、対象が特定できない**
+- minor    元からある要素の**中身か見え方を変えるだけ**。文言の差し替え、誤字、文字の大小・太さ・行間・字間・色、画像の差し替え
+- spec_change  要素を**増やす・減らす・並べ替える**。機能やページの変更。「この下に〜を記載」「〜を追加」「〜を無くして」「順番を」
+- defect   壊れている。表示崩れ、動かない、リンク切れ。「ずれている」「押せない」「表示されない」
+- unclassified  **本当に判断がつかないときだけ。** 依頼文が要素と噛み合っていない、複数の別々のことを同時に言っている、など
 
-subtype（category が minor のときだけ）:
+subtype（minor のとき）:
 - text   文言そのものを変える
 - style  文字の大きさ・太さ・色・行間・字間・余白を変える
-- asset  画像の差し替え
+- asset  画像を差し替える
 - order  並べ替え（これは minor にしない。spec_change です）
 
 confidence:
-- high    依頼文だけで、どこをどう直すか一意に決まる
-- medium  だいたい分かるが、解釈の余地がある
-- low     推測が要る
+- high    **渡された要素に対して、何をすればよいかが決まる。** 数値まで書かれている必要はない
+- medium  要素は分かるが、変更の方向が読み取れない
+- low     依頼文と要素が噛み合っておらず、推測が要る
 
-**自動反映は minor かつ confidence が high のものだけ**に使われます。そのつもりで付けてください。`;
+**自動反映は minor かつ text / style かつ confidence が high のものだけ**に使われます。当てたものは PR として出て、人がマージします。
+
+迷ったら unclassified にしてください。ただし、**上の1〜4を理由に迷わないでください。** そこは前提であって、曖昧さではありません。`;
 
 const CLASSIFY_SCHEMA = {
   type: 'object',
@@ -116,8 +133,10 @@ export async function classify(body: string, outerHtml: string | null): Promise<
           {
             type: 'text',
             text:
-              `# 依頼\n${body.trim()}\n\n` +
-              (outerHtml ? `# 指された要素\n\`\`\`\n${outerHtml.slice(0, 2000)}\n\`\`\`` : ''),
+              `# クライアントが送ってきた修正依頼\n${body.trim()}\n\n` +
+              (outerHtml
+                ? `# クライアントがクリックした要素（これが対象です）\n\`\`\`\n${outerHtml.slice(0, 2000)}\n\`\`\``
+                : ''),
           },
         ],
       },
@@ -144,6 +163,8 @@ const PATCH_SYSTEM = `あなたはこのリポジトリを保守しているエ�
 - 色や書体を、そのサイトで使われていないものに変える
 
 **依頼が上の範囲を超えている場合は、applicable を false にして理由を書いてください。** 無理に当てないでください。人が見ます。
+
+**依頼に具体的な数値が無いのが普通です。** 「大きく」「小さく」しか書かれていません。そのときは、**そのサイトで実際に使われている刻みの中から、隣の値を選んでください**（下に一覧を渡します）。倍にしたり、一覧に無い中途半端な値を作ったりしないこと。1段動かすのが基本です。
 
 oldStr の決まり:
 - 現在のファイルに**一字一句そのまま含まれている**文字列にしてください。空白もインデントも正確に
@@ -233,7 +254,7 @@ export async function runAutoText(
   const { data: proj } = await db
     .from('projects')
     .select(
-      'id, name, ai_enabled, repo_owner, repo_name, default_branch, gh_installation_id, dispatch_debounce_minutes',
+      'id, name, ai_enabled, repo_owner, repo_name, default_branch, gh_installation_id, dispatch_debounce_minutes, design_tokens',
     )
     .eq('id', projectId)
     .maybeSingle();
@@ -394,8 +415,13 @@ export async function runAutoText(
         continue;
       }
 
+      // サイトの刻みを渡す。依頼に数値が無いとき、勝手な値を作らせないため
+      const tok = tokensText((proj.design_tokens as SiteTokens | null) ?? null);
       const body =
-        `# 依頼 #${r.seq}\n${r.body.trim()}\n\n# 指された要素\n\`\`\`\n${(r.outer_html ?? '').slice(0, 3000)}\n\`\`\`\n\n` +
+        `# 依頼 #${r.seq}\n${r.body.trim()}\n\n` +
+        `**この依頼は、下の要素をクリックして送られています。この要素が対象です。**\n` +
+        `\`\`\`\n${(r.outer_html ?? '').slice(0, 3000)}\n\`\`\`\n\n` +
+        (tok ? `${tok}\n\n` : '') +
         cand.map((c) => `# 候補: ${c.path}\n\`\`\`\n${c.content.slice(0, 60000)}\n\`\`\``).join('\n\n');
 
       const stream = client.messages.stream({
