@@ -20,6 +20,7 @@ import { logEvent, type Actor } from '@/lib/events';
 import { tokensText } from '@/lib/site-tokens.mjs';
 import type { SiteTokens } from '@/lib/site-tokens-store';
 import { adminDb } from '@/lib/supabase/admin';
+import { checkMaterial, looksLikeMaterialGap } from '@/lib/material-check';
 import {
   anchorsFrom,
   elementNote,
@@ -283,6 +284,7 @@ export async function applyInstructions(
   projectId: string,
   instructionIds: string[],
   actor: Actor,
+  opts: { inspectOnly?: boolean } = {},
 ): Promise<{ ok: boolean; message: string; results: ApplyResultItem[]; prUrl?: string }> {
   const db = adminDb();
   const results: ApplyResultItem[] = [];
@@ -388,19 +390,71 @@ export async function applyInstructions(
     perItem.push({ row, cand });
   }
 
+  /*
+   * **モデルを呼ぶ前に材料を点検する。**
+   * これまでの見送りは全部ここで分かるものだった。呼んでから
+   * 「ファイルが切れています」と言われるのは、費用も時間も無駄になる。
+   */
+  const sentFiles = [...union.entries()].map(([path, content]) => {
+    const ex = excerptAround(content, [...needles]);
+    return { path, text: ex.text, note: ex.note };
+  });
+
+  const checked: typeof perItem = [];
+  for (const item of perItem) {
+    const mine = sentFiles.filter((f) => item.cand.includes(f.path));
+    const mat = checkMaterial(item.row.requests!, mine);
+    if (mat.problems.length) {
+      results.push({
+        instructionId: item.row.id,
+        seq: item.row.requests!.seq,
+        status: 'skipped',
+        detail: `材料が足りません: ${mat.problems.join(' / ')}`,
+      });
+      continue;
+    }
+    (item as typeof item & { facts: string[] }).facts = mat.facts;
+    checked.push(item);
+  }
+  for (const item of checked) {
+    const facts = (item as typeof item & { facts?: string[] }).facts ?? [];
+    results.push({
+      instructionId: item.row.id,
+      seq: item.row.requests!.seq,
+      status: 'skipped',
+      detail: `材料は揃っています（${item.cand.join(' , ')}）${facts.length ? ' — ' + facts.join(' / ') : ''}`,
+    });
+  }
+
+  // 点検だけ。モデルは呼ばない
+  if (opts.inspectOnly) {
+    const ng = results.filter((r) => r.detail.startsWith('材料が足りません')).length;
+    return {
+      ok: true,
+      message: `${checked.length}件は材料が揃っています${ng ? ` / ${ng}件は足りません` : ''}`,
+      results,
+    };
+  }
+  // 実行するときは、上で入れた「揃っています」は消す
+  results.length = results.length - checked.length;
+
+  if (!checked.length) {
+    return { ok: true, message: '材料が揃っている指示がありませんでした', results };
+  }
+
   const tok = tokensText((proj.design_tokens as SiteTokens | null) ?? null);
   const prompt = [
     '# 実装する指示（社内で確認済み）',
     '',
-    ...perItem.map(({ row, cand }) =>
+    ...checked.map((item) =>
       [
-        `## 指示 ${row.id}（依頼 #${row.requests!.seq}）`,
-        row.instruction,
-        row.target_hint ? `触りそうな場所: ${row.target_hint}` : '',
-        cand.length ? `見るべきファイル: ${cand.join(' , ')}` : '',
-        ...elementNote(row.requests!),
+        `## 指示 ${item.row.id}（依頼 #${item.row.requests!.seq}）`,
+        item.row.instruction,
+        item.row.target_hint ? `触りそうな場所: ${item.row.target_hint}` : '',
+        item.cand.length ? `見るべきファイル: ${item.cand.join(' , ')}` : '',
+        ...((item as typeof item & { facts?: string[] }).facts ?? []),
         '```',
-        (row.requests!.outer_html ?? '').slice(0, 1800),
+        (item.row.requests!.outer_html ?? '').slice(0, 1800),
         '```',
         '',
       ]
@@ -457,7 +511,7 @@ export async function applyInstructions(
   const pending = new Map<string, string>();
   const wrote = new Map<string, { row: Row; summary: string }[]>();
 
-  for (const { row } of perItem) {
+  for (const { row } of checked) {
     const p = patches.find((x) => x.id === row.id);
     const seq = row.requests!.seq;
     if (!p) {
@@ -465,7 +519,15 @@ export async function applyInstructions(
       continue;
     }
     if (!p.applicable) {
-      results.push({ instructionId: row.id, seq, status: 'skipped', detail: p.reason });
+      // 「材料が足りない」はこちらの不具合。普通の見送りと同じ顔をさせない
+      const gap = looksLikeMaterialGap(p.reason);
+      results.push({
+        instructionId: row.id,
+        seq,
+        status: 'skipped',
+        detail: gap ? `【材料不足・要調査】${p.reason}` : p.reason,
+      });
+      if (gap) console.error('[fix] 材料不足の疑い', { instruction: row.id, reason: p.reason });
       continue;
     }
     const pe = pathError(p.file);

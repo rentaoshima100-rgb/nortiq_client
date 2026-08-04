@@ -89,6 +89,20 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
     router.refresh();
   }
 
+  async function inspect() {
+    const ids = picked.size ? [...picked] : pending.map((r) => r.id);
+    if (!ids.length) return;
+    setBusy('inspect');
+    setErr(null);
+    setMsg(null);
+    setResults([]);
+    const r = await post({ projectId, action: 'inspect', ids });
+    setBusy(null);
+    if (!r.ok || r.json.ok === false) setErr(String(r.json.message ?? r.json.error ?? '失敗しました'));
+    else setMsg(String(r.json.message ?? ''));
+    setResults((r.json.results as typeof results) ?? []);
+  }
+
   async function apply() {
     const ids = [...picked];
     if (!ids.length) {
@@ -126,6 +140,13 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
           className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {busy === 'plan' ? '依頼を読んでいます…' : '未処理の依頼から指示を作る'}
+        </button>
+        <button
+          onClick={inspect}
+          disabled={busy !== null}
+          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
+        >
+          {busy === 'inspect' ? 'リポジトリを見ています…' : '材料を点検する（無料）'}
         </button>
         <button
           onClick={apply}

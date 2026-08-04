@@ -17,7 +17,7 @@ export async function POST(req: Request) {
 
   let b: {
     projectId?: string;
-    action?: 'plan' | 'apply';
+    action?: 'plan' | 'apply' | 'inspect';
     ids?: string[];
     requestIds?: string[];
     id?: string;
@@ -48,8 +48,11 @@ export async function POST(req: Request) {
 
   if (!b.projectId) return Response.json({ error: 'projectId がありません' }, { status: 400 });
 
-  if (b.action === 'apply') {
-    const out = await applyInstructions(b.projectId, b.ids ?? [], staffActor(staff));
+  if (b.action === 'apply' || b.action === 'inspect') {
+    // 点検はモデルを呼ばない。材料が揃っているかだけを見る
+    const out = await applyInstructions(b.projectId, b.ids ?? [], staffActor(staff), {
+      inspectOnly: b.action === 'inspect',
+    });
     return Response.json(out);
   }
 
