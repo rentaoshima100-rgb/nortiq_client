@@ -25,7 +25,10 @@ import type { SiteTokens } from '@/lib/site-tokens-store';
 const MODEL = 'claude-opus-5';
 const SYSTEM_ACTOR: Actor = { type: 'system', id: 'auto-text' };
 
-const ALLOWED = [/^src\//, /^app\//, /^components\//, /^styles\//, /^assets\//, /^public\//, /^index\.html$/];
+// 許可はディレクトリで決めない。
+// 実測: loop_asia は styles.css も app.jsx も**ルート直下**にあり、
+// ディレクトリ許可では index.html しか候補にならなかった。
+// 守るべき境界は「禁止パス」の側にあるので、そちらだけを見る。
 const FORBIDDEN = [
   /^package(-lock)?\.json$/,
   /^pnpm-lock\.yaml$/,
@@ -35,6 +38,8 @@ const FORBIDDEN = [
   /\.config\.(js|mjs|cjs|ts)$/,
   /^tsconfig(\.\w+)?\.json$/,
   /^node_modules\//,
+  /^(dist|build|out|\.next)\//,   // ビルド成果物。直しても次のビルドで消える
+  /\.min\.(js|css)$/,
 ];
 const MARKUP_EXT = /\.(html?|jsx?|tsx?|vue|svelte|astro|liquid|erb|php|twig)$/i;
 const STYLE_EXT = /\.(css|scss|sass|less|styl)$/i;
@@ -43,7 +48,7 @@ const SOURCE_EXT = new RegExp(`${MARKUP_EXT.source}|${STYLE_EXT.source}`, 'i');
 function pathError(file: string): string | null {
   if (!file || file.includes('..')) return 'パスが不正です';
   if (FORBIDDEN.some((re) => re.test(file))) return `禁止パスです: ${file}`;
-  if (!ALLOWED.some((re) => re.test(file))) return `許可パスの外です: ${file}`;
+  if (!SOURCE_EXT.test(file)) return `ソースファイルではありません: ${file}`;
   return null;
 }
 
@@ -168,6 +173,8 @@ const PATCH_SYSTEM = `あなたはこのリポジトリを保守しているエ�
 
 **依頼に具体的な数値が無いのが普通です。** 「大きく」「小さく」しか書かれていません。そのときは、**そのサイトで実際に使われている刻みの中から、隣の値を選んでください**（下に一覧を渡します）。倍にしたり、一覧に無い中途半端な値を作ったりしないこと。1段動かすのが基本です。
 
+**クリックされた要素がコンテナのことがあります**（ヘッダー全体など）。その中にロゴ名・ナビ・英字サブテキストのように複数のテキストが入っている場合、**どれか1つを選ばないでください。** その要素の中にあるテキストを**まとめて1段動かします**。edits に、それぞれの指定を並べてください（同じファイル内に限ります）。「どれのことか分からない」と返さないでください。クライアントはその塊を見て言っています。
+
 oldStr の決まり:
 - 現在のファイルに**一字一句そのまま含まれている**文字列にしてください。空白もインデントも正確に
 - ファイル内で**ちょうど1回だけ**現れる長さにしてください
@@ -178,12 +185,25 @@ const PATCH_SCHEMA = {
   properties: {
     applicable: { type: 'boolean', description: '文言・文字まわりの変更として当てられるか' },
     reason: { type: 'string', description: 'applicable が false のときの理由。true なら空文字でよい' },
-    file: { type: 'string' },
-    oldStr: { type: 'string' },
-    newStr: { type: 'string' },
+    file: { type: 'string', description: '書き換えるファイル。候補として渡したものから選ぶ' },
+    edits: {
+      type: 'array',
+      description:
+        '同じファイルへの書き換え。ヘッダーのように配下に複数のテキストがある場合は、' +
+        'それぞれの指定をここに並べる。1件でもよい',
+      items: {
+        type: 'object',
+        properties: {
+          oldStr: { type: 'string' },
+          newStr: { type: 'string' },
+        },
+        required: ['oldStr', 'newStr'],
+        additionalProperties: false,
+      },
+    },
     summary: { type: 'string', description: '何をどう変えたか。日本語1文' },
   },
-  required: ['applicable', 'reason', 'file', 'oldStr', 'newStr', 'summary'],
+  required: ['applicable', 'reason', 'file', 'edits', 'summary'],
   additionalProperties: false,
 } as const;
 
@@ -191,8 +211,7 @@ interface Patch {
   applicable: boolean;
   reason: string;
   file: string;
-  oldStr: string;
-  newStr: string;
+  edits: { oldStr: string; newStr: string }[];
   summary: string;
 }
 
@@ -500,7 +519,16 @@ export async function runAutoText(
         results.push({ requestId: r.id, seq: r.seq, status: 'skipped', detail: pe });
         continue;
       }
-      const se = structureChanged(patch.oldStr, patch.newStr);
+      if (!patch.edits?.length || patch.edits.length > 6) {
+        results.push({
+          requestId: r.id,
+          seq: r.seq,
+          status: 'skipped',
+          detail: `書き換えが ${patch.edits?.length ?? 0} 件です。1〜6件にしてください`,
+        });
+        continue;
+      }
+      const se = patch.edits.map((e) => structureChanged(e.oldStr, e.newStr)).find(Boolean);
       if (se) {
         results.push({ requestId: r.id, seq: r.seq, status: 'skipped', detail: se });
         continue;
@@ -517,20 +545,27 @@ export async function runAutoText(
         branchReady = true;
       }
 
-      // 当てる直前に、ブランチ HEAD の現在の内容で再検証する（9.7）
+      // 当てる直前に、ブランチ HEAD の現在の内容で再検証する（9.7）。
+      // 1件でも当たらなければ、その依頼はまるごと見送る。
+      // 半分だけ当たった状態で出すと、レビューする側が一番困る。
       const cur = await readFile(patch.file, branch);
       if (!cur) throw new Error(`${patch.file} を読めません`);
-      const n = count(cur.content, patch.oldStr);
-      if (n !== 1) {
-        results.push({
-          requestId: r.id,
-          seq: r.seq,
-          status: 'skipped',
-          detail:
+
+      let next = cur.content;
+      let bad: string | null = null;
+      for (const e of patch.edits) {
+        const n = count(next, e.oldStr);
+        if (n !== 1) {
+          bad =
             n === 0
               ? '当てる直前の再検証で対象が見つかりませんでした'
-              : `対象が ${n} 箇所に当たるため当てられません`,
-        });
+              : `対象が ${n} 箇所に当たるため当てられません`;
+          break;
+        }
+        next = next.replace(e.oldStr, e.newStr);
+      }
+      if (bad) {
+        results.push({ requestId: r.id, seq: r.seq, status: 'skipped', detail: bad });
         continue;
       }
 
@@ -539,7 +574,7 @@ export async function runAutoText(
         owner,
         repo,
         patch.file,
-        Buffer.from(cur.content.replace(patch.oldStr, patch.newStr), 'utf8'),
+        Buffer.from(next, 'utf8'),
         `依頼 #${r.seq}: ${patch.summary}`,
         branch,
         cur.sha,

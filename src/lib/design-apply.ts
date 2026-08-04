@@ -23,7 +23,10 @@ import { DESIGNS_BUCKET } from '@/lib/design';
 const MODEL = 'claude-opus-5';
 
 /** 触ってよいパス（9.6）。ここに無いものは書かせない */
-const ALLOWED = [/^src\//, /^app\//, /^components\//, /^styles\//, /^assets\//, /^public\//, /^index\.html$/];
+// 許可はディレクトリで決めない。
+// 実測: loop_asia は styles.css も app.jsx も**ルート直下**にあり、
+// ディレクトリ許可では index.html しか候補にならなかった。
+// 守るべき境界は「禁止パス」の側にあるので、そちらだけを見る。
 const FORBIDDEN = [
   /^package(-lock)?\.json$/,
   /^pnpm-lock\.yaml$/,
@@ -33,9 +36,13 @@ const FORBIDDEN = [
   /\.config\.(js|mjs|cjs|ts)$/,
   /^tsconfig(\.\w+)?\.json$/,
   /^node_modules\//,
+  /^(dist|build|out|\.next)\//,   // ビルド成果物。直しても次のビルドで消える
+  /\.min\.(js|css)$/,
 ];
 
-const SOURCE_EXT = /\.(html?|jsx?|tsx?|vue|svelte|astro|liquid|erb|php|twig)$/i;
+// スタイルシートも含める。見た目の変更はそちらに答えがあることが多い
+const SOURCE_EXT = /\.(html?|jsx?|tsx?|vue|svelte|astro|liquid|erb|php|twig|css|scss|sass|less|styl)$/i;
+const STYLE_EXT = /\.(css|scss|sass|less|styl)$/i;
 
 export interface Plan {
   file: string;
@@ -54,7 +61,7 @@ export type ApplyOutcome =
 function checkPath(file: string): string | null {
   if (!file || file.includes('..')) return 'パスが不正です';
   if (FORBIDDEN.some((re) => re.test(file))) return `禁止パスです: ${file}`;
-  if (!ALLOWED.some((re) => re.test(file))) return `許可パスの外です: ${file}`;
+  if (!SOURCE_EXT.test(file)) return `ソースファイルではありません: ${file}`;
   return null;
 }
 
@@ -217,15 +224,31 @@ export async function planImplementation(
       .map((e) => e.path);
 
     const anchors = anchorsFrom(req.outer_html ?? '');
-    const scored: { path: string; content: string; hits: number }[] = [];
-    for (const path of paths.slice(0, 40)) {
+    // CSS に日本語は入らない。スタイルシートはクラス名で探す
+    const classes: string[] = [];
+    for (const m of (req.outer_html ?? '').matchAll(/class(?:Name)?\s*=\s*["']([^"']+)["']/gi)) {
+      for (const c of m[1].split(/\s+/)) if (c.length >= 3 && !classes.includes(c)) classes.push(c);
+    }
+
+    const markup: { path: string; content: string; hits: number }[] = [];
+    const styles: { path: string; content: string; hits: number }[] = [];
+    for (const path of paths.slice(0, 60)) {
       const f = await readFile(gh, inst, owner, repo, path, base);
       if (!f) continue;
-      const hits = anchors.filter((a) => f.content.includes(a)).length;
-      if (hits > 0) scored.push({ path, content: f.content, hits });
+      if (STYLE_EXT.test(path)) {
+        const hits = classes.filter((c) => f.content.includes(c)).length;
+        if (hits > 0) styles.push({ path, content: f.content, hits });
+      } else {
+        const hits = anchors.filter((a) => f.content.includes(a)).length;
+        if (hits > 0) markup.push({ path, content: f.content, hits });
+      }
     }
-    scored.sort((a, b) => b.hits - a.hits);
-    candidates = scored.slice(0, 2).map(({ path, content }) => ({ path, content }));
+    markup.sort((a, b) => b.hits - a.hits);
+    styles.sort((a, b) => b.hits - a.hits);
+    candidates = [...markup.slice(0, 2), ...styles.slice(0, 1)].map(({ path, content }) => ({
+      path,
+      content,
+    }));
   } catch (e) {
     return { ok: false, kind: 'error', message: `リポジトリを読めません: ${String(e)}` };
   }
