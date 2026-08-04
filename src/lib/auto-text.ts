@@ -36,7 +36,9 @@ const FORBIDDEN = [
   /^tsconfig(\.\w+)?\.json$/,
   /^node_modules\//,
 ];
-const SOURCE_EXT = /\.(html?|jsx?|tsx?|vue|svelte|astro|liquid|erb|php|twig)$/i;
+const MARKUP_EXT = /\.(html?|jsx?|tsx?|vue|svelte|astro|liquid|erb|php|twig)$/i;
+const STYLE_EXT = /\.(css|scss|sass|less|styl)$/i;
+const SOURCE_EXT = new RegExp(`${MARKUP_EXT.source}|${STYLE_EXT.source}`, 'i');
 
 function pathError(file: string): string | null {
   if (!file || file.includes('..')) return 'パスが不正です';
@@ -194,6 +196,7 @@ interface Patch {
   summary: string;
 }
 
+/** マークアップを探す手がかり。そのサイトにしか無い文字列 */
 function anchorsFrom(outerHtml: string): string[] {
   const out: string[] = [];
   for (const m of outerHtml.matchAll(/[぀-ヿ一-龯ー]{4,20}/g)) {
@@ -205,6 +208,28 @@ function anchorsFrom(outerHtml: string): string[] {
     if (out.length >= 18) break;
   }
   return out;
+}
+
+/**
+ * スタイルシートを探す手がかり。
+ *
+ * 文字サイズの指定は CSS にあり、**そこに日本語は入っていない**。
+ * 本文の文字列で探すと、スタイルシートは永久に候補に入らない。
+ * クラス名と、実際に当たっているセレクタで探す。
+ */
+function selectorsFrom(outerHtml: string, cssRules: { selector: string }[] | null): string[] {
+  const out: string[] = [];
+  for (const m of outerHtml.matchAll(/class(?:Name)?\s*=\s*["']([^"']+)["']/gi)) {
+    for (const cls of m[1].split(/\s+/)) {
+      if (cls.length >= 3 && !out.includes(cls)) out.push(cls);
+    }
+  }
+  for (const r of cssRules ?? []) {
+    for (const m of String(r.selector).matchAll(/[.#]([\w-]{3,})/g)) {
+      if (!out.includes(m[1])) out.push(m[1]);
+    }
+  }
+  return out.slice(0, 24);
 }
 
 /**
@@ -294,7 +319,7 @@ export async function runAutoText(
   // 未処理の依頼
   const { data: reqs } = await db
     .from('requests')
-    .select('id, seq, body, category, subtype, status, outer_html')
+    .select('id, seq, body, category, subtype, status, outer_html, css_rules')
     .eq('project_id', projectId)
     .eq('status', 'received')
     .order('seq')
@@ -395,16 +420,42 @@ export async function runAutoText(
   for (const r of targets) {
     try {
       // 対象ファイルは機械で絞る。モデルに探させない
+      /*
+       * マークアップとスタイルシートは、別の手がかりで探す。
+       *
+       * 実測: 「文字が小さい」に対して index.html しか渡せず、
+       * 「styles.css をご提示いただければ直せます」と返ってきた。
+       * 文字サイズの指定は CSS にあり、そこに日本語は入っていないので、
+       * 本文の文字列で探す限りスタイルシートは永久に候補に入らない。
+       */
       const anchors = anchorsFrom(r.outer_html ?? '');
-      const scored: { path: string; content: string; hits: number }[] = [];
+      const selectors = selectorsFrom(
+        r.outer_html ?? '',
+        r.css_rules as { selector: string }[] | null,
+      );
+
+      const markup: { path: string; content: string; hits: number }[] = [];
+      const styles: { path: string; content: string; hits: number }[] = [];
       for (const path of paths) {
         const f = await readFile(path, base);
         if (!f) continue;
-        const hits = anchors.filter((a) => f.content.includes(a)).length;
-        if (hits > 0) scored.push({ path, content: f.content, hits });
+        if (STYLE_EXT.test(path)) {
+          const hits = selectors.filter((sel) => f.content.includes(sel)).length;
+          if (hits > 0) styles.push({ path, content: f.content, hits });
+        } else {
+          const hits = anchors.filter((a) => f.content.includes(a)).length;
+          if (hits > 0) markup.push({ path, content: f.content, hits });
+        }
       }
-      scored.sort((a, b) => b.hits - a.hits);
-      const cand = scored.slice(0, 2);
+      markup.sort((a, b) => b.hits - a.hits);
+      styles.sort((a, b) => b.hits - a.hits);
+
+      // 文字まわりの依頼はスタイルシート側に答えがあることが多い。
+      // どちらか一方だけを渡すと「もう片方を見せてほしい」で止まる。
+      const cand =
+        r.subtype === 'style'
+          ? [...styles.slice(0, 2), ...markup.slice(0, 1)]
+          : [...markup.slice(0, 2), ...styles.slice(0, 1)];
       if (!cand.length) {
         results.push({
           requestId: r.id,
@@ -422,7 +473,7 @@ export async function runAutoText(
         `**この依頼は、下の要素をクリックして送られています。この要素が対象です。**\n` +
         `\`\`\`\n${(r.outer_html ?? '').slice(0, 3000)}\n\`\`\`\n\n` +
         (tok ? `${tok}\n\n` : '') +
-        cand.map((c) => `# 候補: ${c.path}\n\`\`\`\n${c.content.slice(0, 60000)}\n\`\`\``).join('\n\n');
+        cand.map((c) => `# 候補ファイル: ${c.path}\n\`\`\`\n${c.content.slice(0, 60000)}\n\`\`\``).join('\n\n');
 
       const stream = client.messages.stream({
         model: MODEL,
