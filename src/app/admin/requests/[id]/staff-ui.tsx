@@ -1,0 +1,228 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useRef, useState } from 'react';
+
+/**
+ * 社内があとから添付を足す。
+ *
+ * 「この写真に差し替えて」に対して、正しい素材を社内が持っていることがある。
+ * 素材／参考の別は必ず選ばせる（6.9）。あとで揉めたときに、
+ * 誰が「これは素材だ」と言ったかが要る。
+ */
+export function StaffAttach({ requestId }: { requestId: string }) {
+  const router = useRouter();
+  const file = useRef<HTMLInputElement>(null);
+  const [kind, setKind] = useState<'material' | 'reference'>('reference');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function upload() {
+    const f = file.current?.files?.[0];
+    if (!f) {
+      setErr('ファイルを選んでください');
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch('/api/admin/attachments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId,
+          filename: f.name,
+          mime: f.type,
+          bytes: f.size,
+          kind,
+        }),
+      });
+      const j = (await res.json()) as { uploadUrl?: string; error?: string };
+      if (!res.ok || !j.uploadUrl) {
+        setErr(j.error ?? '登録に失敗しました');
+        return;
+      }
+      const put = await fetch(j.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': f.type },
+        body: f,
+      });
+      if (!put.ok) {
+        setErr(`アップロードに失敗しました（${put.status}）`);
+        return;
+      }
+      if (file.current) file.current.value = '';
+      router.refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '通信に失敗しました');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-3">
+      <p className="mb-2 text-xs font-medium text-slate-600">社内から画像を足す</p>
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          ref={file}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+          className="text-xs"
+        />
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value as 'material' | 'reference')}
+          className="rounded border border-slate-300 px-2 py-1 text-xs"
+        >
+          <option value="reference">参考（イメージを伝えるだけ）</option>
+          <option value="material">素材（サイトに使う）</option>
+        </select>
+        <button
+          onClick={upload}
+          disabled={busy}
+          className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+        >
+          {busy ? '追加しています…' : '追加する'}
+        </button>
+        {err && <span className="text-xs text-amber-700">{err}</span>}
+      </div>
+      <p className="mt-2 text-xs text-slate-400">
+        「素材」を選ぶと、この案件で画像差し替えが有効なとき、差し替えの対象になります。
+        イメージを伝えるだけの画像は「参考」にしてください。
+      </p>
+    </div>
+  );
+}
+
+export interface AutoJob {
+  status: string;
+  summary: string | null;
+  pr_url: string | null;
+  pr_number: number | null;
+  merged_at: string | null;
+  created_at: string;
+}
+
+/** 自動で当てた跡。無いと社内が二重に作業する */
+export function AutoFixMark({ job }: { job: AutoJob }) {
+  const done = !!job.merged_at;
+  return (
+    <div
+      className={
+        done
+          ? 'rounded-lg border border-green-200 bg-green-50 px-4 py-3'
+          : 'rounded-lg border border-blue-200 bg-blue-50 px-4 py-3'
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={
+            done
+              ? 'rounded bg-green-600 px-2 py-0.5 text-xs font-bold text-white'
+              : 'rounded bg-blue-600 px-2 py-0.5 text-xs font-bold text-white'
+          }
+        >
+          {done ? '自動修正で完了' : '自動修正 — PR 待ち'}
+        </span>
+        {job.summary && <span className="text-sm">{job.summary}</span>}
+        {job.pr_url && (
+          <a
+            href={job.pr_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm text-slate-700 underline"
+          >
+            PR {job.pr_number ? `#${job.pr_number}` : ''} を開く
+          </a>
+        )}
+      </div>
+      <p className="mt-1 text-xs text-slate-500">
+        {done
+          ? 'PR がマージされ、本番に出ています。'
+          : 'まだマージされていません。PR を確認してマージすると本番に出ます。自動マージはしません。'}
+      </p>
+    </div>
+  );
+}
+
+/** 案件ページから手で走らせる */
+export function RunAutoText({ projectId }: { projectId: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [out, setOut] = useState<{
+    message: string;
+    prUrl?: string;
+    results: { seq: number; status: string; detail: string }[];
+  } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch('/api/admin/auto-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId }),
+      });
+      const text = await res.text();
+      let j;
+      try {
+        j = JSON.parse(text) as typeof out;
+      } catch {
+        setErr(res.status === 504 ? '時間内に終わりませんでした（504）' : `応答が不正です（${res.status}）`);
+        return;
+      }
+      setOut(j);
+      router.refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '通信に失敗しました');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={run}
+          disabled={busy}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+        >
+          {busy ? '依頼を見ています…' : 'いま走らせる'}
+        </button>
+        {err && <span className="text-xs text-amber-700">{err}</span>}
+        {out && !err && <span className="text-xs text-slate-600">{out.message}</span>}
+        {out?.prUrl && (
+          <a href={out.prUrl} target="_blank" rel="noreferrer" className="text-xs text-green-700 underline">
+            PR を開く
+          </a>
+        )}
+      </div>
+
+      {out && out.results.length > 0 && (
+        <ul className="mt-3 space-y-1">
+          {out.results.map((r) => (
+            <li key={r.seq} className="text-xs">
+              <span
+                className={
+                  r.status === 'applied'
+                    ? 'text-green-700'
+                    : r.status === 'failed'
+                      ? 'text-red-700'
+                      : 'text-slate-500'
+                }
+              >
+                #{r.seq}{' '}
+                {r.status === 'applied' ? '反映' : r.status === 'failed' ? '失敗' : '見送り'}
+              </span>
+              <span className="ml-2 text-slate-500">{r.detail}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

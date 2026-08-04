@@ -218,7 +218,10 @@ export interface AutoResult {
  * 1案件ぶん回す。**PR は1本にまとめる**（9.2 の理由2）。
  * 依頼ごとに PR を立てると N ブランチ N レビューになる。
  */
-export async function runAutoText(projectId: string): Promise<{
+export async function runAutoText(
+  projectId: string,
+  opts: { manual?: boolean } = {},
+): Promise<{
   ok: boolean;
   message: string;
   results: AutoResult[];
@@ -236,7 +239,10 @@ export async function runAutoText(projectId: string): Promise<{
     .maybeSingle();
 
   if (!proj) return { ok: false, message: '案件が見つかりません', results };
-  if (!proj.ai_enabled) return { ok: true, message: '自動反映は無効です', results };
+  // 手で押したときは、無効でも走らせる。社内が明示的に押している
+  if (!proj.ai_enabled && !opts.manual) {
+    return { ok: true, message: '自動反映は無効です', results };
+  }
   if (!proj.repo_owner || !proj.repo_name) {
     return { ok: false, message: 'リポジトリが設定されていません', results };
   }
@@ -245,7 +251,8 @@ export async function runAutoText(projectId: string): Promise<{
   }
 
   // デバウンス（8.2）。直近の依頼が続いている間は動かさない
-  const debounceMs = (proj.dispatch_debounce_minutes ?? 30) * 60_000;
+  // 手で押したときは待たせない（クライアントの目の前で直したい、締切が近い）
+  const debounceMs = opts.manual ? 0 : (proj.dispatch_debounce_minutes ?? 30) * 60_000;
   const { data: latest } = await db
     .from('requests')
     .select('created_at')
@@ -361,7 +368,7 @@ export async function runAutoText(projectId: string): Promise<{
 
   const branch = `nq/auto-text-${new Date().toISOString().slice(0, 10)}`;
   let branchReady = false;
-  const applied: { seq: number; summary: string }[] = [];
+  const applied: { seq: number; summary: string; jobId?: string }[] = [];
   const client = new Anthropic();
 
   for (const r of targets) {
@@ -461,17 +468,35 @@ export async function runAutoText(projectId: string): Promise<{
         cur.sha,
       );
 
-      await db.from('ai_jobs').insert({
-        request_id: r.id,
-        dispatch_no: 1,
-        patch_kind: 'text',
-        provider: 'anthropic',
-        status: 'succeeded',
-        patch: patch as never,
-        finished_at: new Date().toISOString(),
-      } as never);
+      const { data: job } = await db
+        .from('ai_jobs')
+        .insert({
+          request_id: r.id,
+          dispatch_no: 1,
+          patch_kind: 'text',
+          provider: 'anthropic',
+          status: 'succeeded',
+          patch: patch as never,
+          summary: patch.summary,
+          branch,
+          finished_at: new Date().toISOString(),
+        } as never)
+        .select('id')
+        .maybeSingle();
 
-      applied.push({ seq: r.seq, summary: patch.summary });
+      // 手つかずに見えると社内が二重に作業する。着手済みにしておく
+      await db.from('requests').update({ status: 'in_progress' } as never).eq('id', r.id);
+
+      await logEvent({
+        projectId,
+        actor: SYSTEM_ACTOR,
+        entity: 'request',
+        entityId: r.id,
+        action: 'auto_text.applied',
+        after: { file: patch.file, summary: patch.summary, branch },
+      });
+
+      applied.push({ seq: r.seq, summary: patch.summary, jobId: job?.id as string | undefined });
       results.push({ requestId: r.id, seq: r.seq, status: 'applied', detail: patch.summary });
     } catch (e) {
       results.push({
@@ -498,6 +523,16 @@ export async function runAutoText(projectId: string): Promise<{
       `対象は「文言の変更」と「文字の大きさ・太さ・行間・字間・色」に限っています。` +
       `構造を変える書き換えは機械で弾いています。`,
   });
+
+  // どの依頼がどの PR に入ったかを引けるようにする。
+  // これが無いと、社内は「自動で直ったのか、まだなのか」を追えない。
+  for (const a of applied) {
+    if (!a.jobId) continue;
+    await db
+      .from('ai_jobs')
+      .update({ pr_url: pr.html_url, pr_number: pr.number } as never)
+      .eq('id', a.jobId);
+  }
 
   await logEvent({
     projectId,

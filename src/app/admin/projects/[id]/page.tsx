@@ -14,6 +14,7 @@ import {
 import { adminDb } from '@/lib/supabase/admin';
 import type { SiteTokens } from '@/lib/site-tokens-store';
 import { Onboarding } from './onboarding-ui';
+import { RunAutoText } from '@/app/admin/requests/[id]/staff-ui';
 import type { Locator } from '@/lib/types';
 import {
   CATEGORY_OPTIONS,
@@ -209,6 +210,19 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <h3 className="mb-2 text-xs font-bold text-slate-500">埋め込みスニペット</h3>
           <SnippetBox snippet={snippet} />
         </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-6">
+        <h2 className="text-sm font-bold">文言・文字まわりの自動反映</h2>
+        <p className="mb-4 mt-1 text-xs leading-relaxed text-slate-500">
+          {project.ai_enabled
+            ? '1時間ごとに動きます。待てないときはここから走らせてください（デバウンスを飛ばします）。'
+            : 'この案件では自動反映を切っています。ここから押した場合だけ走ります。'}
+          <br />
+          対象は文言と文字の大小・太さ・行間・字間・色だけです。
+          <b>自動マージはしません。</b>
+        </p>
+        <RunAutoText projectId={project.id} />
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">

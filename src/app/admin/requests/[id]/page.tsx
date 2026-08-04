@@ -11,6 +11,7 @@ import {
   type BatchView,
   type ProposalView,
 } from './design-ui';
+import { AutoFixMark, StaffAttach, type AutoJob } from './staff-ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -122,6 +123,16 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
     files.push({ att: a, url: signed?.signedUrl ?? null });
   }
 
+  // 自動で当てた跡。無いと社内が二重に作業する
+  const { data: autoJobs } = await db
+    .from('ai_jobs')
+    .select('status, summary, pr_url, pr_number, merged_at, created_at')
+    .eq('request_id', req.id)
+    .eq('patch_kind', 'text')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  const autoJob = (autoJobs?.[0] as AutoJob | undefined) ?? null;
+
   // 参考デザイン案。最新の世代だけを出す（過去の世代は残るが画面には出さない）
   const { data: allProposals } = await db
     .from('design_proposals')
@@ -162,6 +173,12 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         </Link>
         <h1 className="mt-1 text-lg font-bold">依頼 #{req.seq}</h1>
       </div>
+
+      {autoJob && (
+        <div>
+          <AutoFixMark job={autoJob} />
+        </div>
+      )}
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <p className="whitespace-pre-wrap text-sm">{req.body}</p>
@@ -280,9 +297,9 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         </div>
       </section>
 
-      {files.length > 0 && (
-        <section className="rounded-xl border border-slate-200 bg-white p-6">
-          <h2 className="mb-3 text-sm font-bold">添付</h2>
+      <section className="rounded-xl border border-slate-200 bg-white p-6">
+        <h2 className="mb-3 text-sm font-bold">添付</h2>
+        {files.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2">
             {files.map(({ att, url }) => (
               <div key={att.id} className="rounded-lg border border-slate-200 p-3">
@@ -313,8 +330,12 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               </div>
             ))}
           </div>
-        </section>
-      )}
+        )}
+        {files.length === 0 && (
+          <p className="text-xs text-slate-400">添付はありません。</p>
+        )}
+        <StaffAttach requestId={req.id} />
+      </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="mb-3 text-sm font-bold">ロケータ（6.7）</h2>
