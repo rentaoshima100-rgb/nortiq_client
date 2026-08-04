@@ -1,5 +1,7 @@
 'use client';
 
+import { useT } from '@/lib/i18n-client';
+
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
@@ -19,13 +21,14 @@ export interface BatchView {
 
 /** 調査結果。施主に示す根拠になるので、折りたたんでも消さない */
 export function ResearchPanel({ b }: { b: BatchView }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   return (
     <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
       {b.clientSpec ? (
         <div className="mb-3 rounded border-l-4 border-slate-900 bg-white px-3 py-2">
-          <div className="text-xs font-bold text-slate-500">施主の指定（3案すべてが従っています）</div>
+          <div className="text-xs font-bold text-slate-500">{t('施主の指定（3案すべてが従っています）')}</div>
           <p className="mt-1 whitespace-pre-wrap text-sm">{b.clientSpec}</p>
         </div>
       ) : (
@@ -61,6 +64,7 @@ export function ResearchPanel({ b }: { b: BatchView }) {
 }
 
 export function GenerateButton({ requestId, again }: { requestId: string; again: boolean }) {
+  const t = useT();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -82,7 +86,7 @@ export function GenerateButton({ requestId, again }: { requestId: string; again:
     } catch {
       const hint =
         r.status === 504
-          ? '時間内に終わりませんでした（504）'
+          ? t('時間内に終わりませんでした（504）')
           : `サーバーが応答しませんでした（${r.status}）`;
       return { ok: false, json: { error: `${hint}: ${text.slice(0, 120)}` } };
     }
@@ -90,19 +94,19 @@ export function GenerateButton({ requestId, again }: { requestId: string; again:
 
   async function run() {
     setBusy(true);
-    setMsg('実例を調べています…');
+    setMsg(t('実例を調べています…'));
     try {
       // 1段目。調査と生成をまとめると 60秒に当たって何も残らない
       const r1 = await post({ requestId });
       if (!r1.ok) {
-        setMsg(String(r1.json.error ?? '調査に失敗しました'));
+        setMsg(String(r1.json.error ?? t('調査に失敗しました')));
         return;
       }
       const batch = r1.json.batch as number;
       router.refresh();
 
       // 2段目。3案は別々の呼び出しにして並行に投げる
-      setMsg('3案を作っています…');
+      setMsg(t('3案を作っています…'));
       const results = await Promise.all(
         [1, 2, 3].map((variant) => post({ requestId, batch, variant })),
       );
@@ -114,7 +118,7 @@ export function GenerateButton({ requestId, again }: { requestId: string; again:
       );
       router.refresh();
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : '通信に失敗しました');
+      setMsg(e instanceof Error ? e.message : t('通信に失敗しました'));
     } finally {
       setBusy(false);
     }
@@ -127,7 +131,7 @@ export function GenerateButton({ requestId, again }: { requestId: string; again:
         disabled={busy}
         className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
-        {busy ? '作成中…' : again ? 'もう一度作る' : '参考デザインを3案作る'}
+        {busy ? t('作成中…') : again ? t('もう一度作る') : t('参考デザインを3案作る')}
       </button>
       {msg && <span className="text-sm text-amber-700">{msg}</span>}
     </div>
@@ -146,6 +150,7 @@ const WIDTHS = [
  * **実寸で描いて縮小して見せる**。
  */
 function Preview({ id, title }: { id: string; title: string }) {
+  const t = useT();
   const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.4);
   const [size, setSize] = useState<(typeof WIDTHS)[number]>(WIDTHS[0]);
@@ -205,6 +210,7 @@ function Preview({ id, title }: { id: string; title: string }) {
 }
 
 export function ProposalCard({ p }: { p: ProposalView }) {
+  const t = useT();
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200">
       <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
@@ -254,6 +260,7 @@ interface Plan {
  * 押した瞬間にリポジトリが変わる作りにはしない。
  */
 function Implement({ proposalId }: { proposalId: string }) {
+  const t = useT();
   const router = useRouter();
   const [busy, setBusy] = useState<'plan' | 'pr' | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -279,7 +286,7 @@ function Implement({ proposalId }: { proposalId: string }) {
         return;
       }
       if (!j.ok) {
-        setErr(String(j.message ?? j.error ?? '失敗しました'));
+        setErr(String(j.message ?? j.error ?? t('失敗しました')));
         return;
       }
       setPlan(j.plan as Plan);
@@ -290,7 +297,7 @@ function Implement({ proposalId }: { proposalId: string }) {
         setMsg(String(j.message ?? ''));
       }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '通信に失敗しました');
+      setErr(e instanceof Error ? e.message : t('通信に失敗しました'));
     } finally {
       setBusy(null);
     }
@@ -314,7 +321,7 @@ function Implement({ proposalId }: { proposalId: string }) {
             disabled={busy !== null}
             className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
           >
-            {busy === 'plan' ? 'ソースを読んでいます…' : 'この案で実装する'}
+            {busy === 'plan' ? t('ソースを読んでいます…') : t('この案で実装する')}
           </button>
         ) : (
           <button
@@ -322,7 +329,7 @@ function Implement({ proposalId }: { proposalId: string }) {
             disabled={busy !== null}
             className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
           >
-            {busy === 'pr' ? 'PR を作っています…' : 'PR を出す'}
+            {busy === 'pr' ? t('PR を作っています…') : t('PR を出す')}
           </button>
         )}
       </div>
@@ -343,7 +350,7 @@ function Implement({ proposalId }: { proposalId: string }) {
             </ul>
           )}
           <details className="mt-2">
-            <summary className="cursor-pointer text-xs text-slate-500">差分を見る</summary>
+            <summary className="cursor-pointer text-xs text-slate-500">{t('差分を見る')}</summary>
             <div className="mt-2 grid gap-2 md:grid-cols-2">
               <pre className="max-h-64 overflow-auto rounded bg-red-50 p-2 text-[11px] leading-relaxed text-red-900">
                 {plan.oldStr}

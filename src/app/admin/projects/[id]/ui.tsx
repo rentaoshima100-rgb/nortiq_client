@@ -1,5 +1,7 @@
 'use client';
 
+import { useT } from '@/lib/i18n-client';
+
 import { useActionState, useCallback, useEffect, useState } from 'react';
 import {
   issueInvite,
@@ -12,6 +14,7 @@ import {
 /* ── 埋め込みスニペット ─────────────────────────────────────── */
 
 export function SnippetBox({ snippet }: { snippet: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
     <div className="relative">
@@ -27,7 +30,7 @@ export function SnippetBox({ snippet }: { snippet: string }) {
         }}
         className="absolute right-2 top-2 rounded-md bg-white/10 px-2 py-1 text-xs text-white hover:bg-white/20"
       >
-        {copied ? 'コピーしました' : 'コピー'}
+        {copied ? t('コピーしました') : t('コピー')}
       </button>
     </div>
   );
@@ -55,6 +58,7 @@ interface Readiness {
  * 実際にあるので、確認したうえで通せる形にする。
  */
 export function InviteIssuer({ projectId }: { projectId: string }) {
+  const t = useT();
   const [state, action, pending] = useActionState(issueInvite, initialInvite);
   const [ready, setReady] = useState<Readiness | null>(null);
   const [checking, setChecking] = useState(true);
@@ -102,7 +106,7 @@ export function InviteIssuer({ projectId }: { projectId: string }) {
       {ready && !ready.canInvite && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           <p>
-            <strong>まだ本番に出ていません。</strong> {ready.reason}
+            <strong>{t('まだ本番に出ていません。')}</strong> {ready.reason}
           </p>
           {ready.deploy && (
             <p className="mt-1">
@@ -116,7 +120,7 @@ export function InviteIssuer({ projectId }: { projectId: string }) {
               </a>
             )}
             <button type="button" onClick={() => void check()} className="underline">
-              {checking ? '確認しています…' : 'いま確認する'}
+              {checking ? t('確認しています…') : t('いま確認する')}
             </button>
             <label className="flex items-center gap-1.5">
               <input
@@ -134,15 +138,15 @@ export function InviteIssuer({ projectId }: { projectId: string }) {
         <input type="hidden" name="project_id" value={projectId} />
         <input
           name="label"
-          placeholder="宛先のメモ（例: 田中様）"
+          placeholder={t("宛先のメモ（例: 田中様）")}
           className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:bg-white"
         />
         <button
           disabled={pending || blocked}
-          title={blocked ? 'スニペットがまだ本番に出ていません' : undefined}
+          title={blocked ? t('スニペットがまだ本番に出ていません') : undefined}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {pending ? '発行中…' : '招待リンクを発行'}
+          {pending ? t('発行中…') : t('招待リンクを発行')}
         </button>
       </form>
 
@@ -204,6 +208,7 @@ export function ProjectSettings({
     auto_confirm_days: number;
   };
 }) {
+  const t = useT();
   const [state, action, pending] = useActionState(saveProjectSettings, initialSettings);
   const repo =
     project.repo_owner && project.repo_name ? `${project.repo_owner}/${project.repo_name}` : '';
@@ -241,13 +246,13 @@ export function ProjectSettings({
           <label className="mb-1 block text-xs font-medium text-slate-600">
             LINE の送り先（ユーザーID / グループID）
           </label>
-          <input name="line_to" defaultValue={project.line_to ?? ''} placeholder="U1234... 未設定なら通知しない" className={FIELD} />
+          <input name="line_to" defaultValue={project.line_to ?? ''} placeholder={t("U1234... 未設定なら通知しない")} className={FIELD} />
           <p className="mt-1 text-xs text-slate-400">
             公開通知・確認リマインド・締切予告を送ります（11.1）
           </p>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">既定ブランチ</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600">{t('既定ブランチ')}</label>
           <input name="default_branch" defaultValue={project.default_branch ?? 'main'} className={FIELD} />
           <label className="mt-2 flex items-start gap-2 text-xs text-slate-600">
             <input
@@ -269,10 +274,10 @@ export function ProjectSettings({
       <div className="grid gap-3 sm:grid-cols-4">
         {(
           [
-            ['free_rounds', '無償ラウンド数', project.free_rounds],
-            ['max_items_per_round', '1ラウンドの上限件数', project.max_items_per_round],
-            ['freeze_idle_days', '無操作で締切（日）', project.freeze_idle_days],
-            ['auto_confirm_days', '自動確認（日）', project.auto_confirm_days],
+            ['free_rounds', t('無償ラウンド数'), project.free_rounds],
+            ['max_items_per_round', t('1ラウンドの上限件数'), project.max_items_per_round],
+            ['freeze_idle_days', t('無操作で締切（日）'), project.freeze_idle_days],
+            ['auto_confirm_days', t('自動確認（日）'), project.auto_confirm_days],
           ] as [string, string, number][]
         ).map(([name, label, val]) => (
           <div key={name}>
@@ -291,7 +296,7 @@ export function ProjectSettings({
             className="mt-1"
           />
           <span>
-            <b>ラウンド制を使う</b>
+            <b>{t('ラウンド制を使う')}</b>
             <span className="block text-xs text-slate-500">
               外すと、締切・無償回数のカウント・確認のやりとりを行いません。
               依頼は貯まり続け、進捗は依頼ごとの状態で管理します。
@@ -302,7 +307,7 @@ export function ProjectSettings({
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" name="has_nq_id" defaultChecked={project.has_nq_id} className="mt-1" />
           <span>
-            <b>nq-id が注入されている</b>
+            <b>{t('nq-id が注入されている')}</b>
             <span className="block text-xs text-slate-500">
               tools/nq-inject を prebuild に入れてある場合。ロケータが段1で当たるようになります（6.6）
             </span>
@@ -316,7 +321,7 @@ export function ProjectSettings({
             className="mt-1"
           />
           <span>
-            <b>素材差し替えを有効にする（Phase 3a）</b>
+            <b>{t('素材差し替えを有効にする（Phase 3a）')}</b>
             <span className="block text-xs text-slate-500">
               決定的処理で LLM を使いません。ZDR の取得を待たずに使えます（9.10・13.3）
             </span>
@@ -325,10 +330,10 @@ export function ProjectSettings({
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" name="ai_enabled" defaultChecked={project.ai_enabled} className="mt-1" />
           <span>
-            <b>文言・文字まわりを自動で反映する</b>
+            <b>{t('文言・文字まわりを自動で反映する')}</b>
             <span className="block text-xs text-slate-500">
               「この一文を直して」「ここの文字を大きく」を、人手を介さずリポジトリに当てて
-              PR を出します。1時間ごとに動きます。<b>自動マージはしません。</b>
+              PR を出します。1時間ごとに動きます。<b>{t('自動マージはしません。')}</b>
             </span>
             <span className="block text-xs text-amber-700">
               対象は文言と文字の大小・太さ・行間・字間・色だけ。要素の増減・並べ替え・
@@ -339,12 +344,12 @@ export function ProjectSettings({
       </div>
 
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
-      {state.saved && <p className="text-sm text-emerald-600">保存しました</p>}
+      {state.saved && <p className="text-sm text-emerald-600">{t('保存しました')}</p>}
       <button
         disabled={pending}
         className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
       >
-        {pending ? '保存中…' : '設定を保存'}
+        {pending ? t('保存中…') : t('設定を保存')}
       </button>
     </form>
   );
@@ -366,6 +371,7 @@ export function FieldSelect({
   value: string | null;
   options: [string, string][];
 }) {
+  const t = useT();
   return (
     <form action={updateRequestField}>
       <input type="hidden" name="request_id" value={requestId} />

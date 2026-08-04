@@ -1,11 +1,14 @@
 'use client';
 
+import { useT } from '@/lib/i18n-client';
+
 import { useActionState } from 'react';
 import { signIn, type LoginState } from './actions';
 
 const initial: LoginState = {};
 
 export function LoginForm({ notice }: { notice?: string }) {
+  const t = useT();
   const [state, action, pending] = useActionState(signIn, initial);
 
   return (
@@ -14,7 +17,7 @@ export function LoginForm({ notice }: { notice?: string }) {
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">{notice}</p>
       )}
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700">メールアドレス</label>
+        <label className="mb-1 block text-sm font-medium text-slate-700">{t('メールアドレス')}</label>
         <input
           name="email"
           type="email"
@@ -24,7 +27,7 @@ export function LoginForm({ notice }: { notice?: string }) {
         />
       </div>
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700">パスワード</label>
+        <label className="mb-1 block text-sm font-medium text-slate-700">{t('パスワード')}</label>
         <input
           name="password"
           type="password"
@@ -39,7 +42,7 @@ export function LoginForm({ notice }: { notice?: string }) {
         disabled={pending}
         className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
       >
-        {pending ? 'ログイン中…' : 'ログイン'}
+        {pending ? t('ログイン中…') : t('ログイン')}
       </button>
     </form>
   );

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getT } from '@/lib/i18n';
 import { notFound } from 'next/navigation';
 import { ATTACHMENTS_BUCKET, SNAPSHOTS_BUCKET } from '@/lib/env';
 import { describeTarget, positionInPage, siteViewUrl } from '@/lib/describe';
@@ -59,6 +60,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 export default async function RequestDetail({ params }: { params: Promise<{ id: string }> }) {
+  const t = await getT();
   const { id } = await params;
   const db = adminDb();
 
@@ -169,7 +171,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
           href={`/admin/projects/${req.project_id}`}
           className="text-xs text-slate-400 hover:text-slate-600"
         >
-          ← {project?.name ?? '案件'}
+          ← {project?.name ?? t('案件')}
         </Link>
         <h1 className="mt-1 text-lg font-bold">依頼 #{req.seq}</h1>
       </div>
@@ -192,12 +194,12 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <p className="whitespace-pre-wrap text-sm">{req.body}</p>
         <div className="mt-4">
-          <Row label="受付">{fmt(req.created_at)}</Row>
-          <Row label="ページ">{req.page_path}</Row>
-          <Row label="ビューポート">
+          <Row label={t("受付")}>{fmt(req.created_at)}</Row>
+          <Row label={t("ページ")}>{req.page_path}</Row>
+          <Row label={t("ビューポート")}>
             {req.viewport_w} × {req.viewport_h} / scrollY {req.scroll_y}
           </Row>
-          <Row label="種別">
+          <Row label={t("種別")}>
             {req.category} {req.subtype ? `／ ${req.subtype}` : ''}（{req.status}）
           </Row>
           <Row label="site_sha">
@@ -214,7 +216,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-bold">どこの話か</h2>
+          <h2 className="text-sm font-bold">{t('どこの話か')}</h2>
           {project?.site_url && (
             <a
               href={siteViewUrl(project.site_url, req.page_path, req.seq)}
@@ -244,7 +246,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
                             : 'rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600'
                         }
                       >
-                        {arr.length > 1 ? (isAfter ? '変更後' : '変更前') : '現在'} ／{' '}
+                        {arr.length > 1 ? (isAfter ? t('変更後') : t('変更前')) : t('現在')} ／{' '}
                         {s.snapshots?.phase}
                       </span>
                       <span className="text-slate-400">
@@ -254,7 +256,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={u}
-                      alt="指摘箇所の切り出し"
+                      alt={t("指摘箇所の切り出し")}
                       className="w-full rounded-lg border border-slate-200 bg-slate-50"
                     />
                   </figure>
@@ -275,9 +277,9 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
                 {shot?.match_tier}
               </span>
               {shot?.match_tier === 'provisional' &&
-                '（本文・画像の src・リンクの行き先・クラス込みの経路のいずれかで一つに決めています。nq-id を注入すると confirmed に上がります）'}
+                t('（本文・画像の src・リンクの行き先・クラス込みの経路のいずれかで一つに決めています。nq-id を注入すると confirmed に上がります）')}
               {(shot?.match_tier === 'weak' || shot?.match_tier === 'stale') &&
-                '（決め手が無く、経路と座標で当てています。別の要素を指している可能性があります）'}
+                t('（決め手が無く、経路と座標で当てています。別の要素を指している可能性があります）')}
               {shots.length > 2 && ` ／ 撮影 ${shots.length} 回のうち直近2回を表示`}
             </p>
           </div>
@@ -307,7 +309,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="mb-3 text-sm font-bold">添付</h2>
+        <h2 className="mb-3 text-sm font-bold">{t('添付')}</h2>
         {files.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2">
             {files.map(({ att, url }) => (
@@ -341,13 +343,13 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
           </div>
         )}
         {files.length === 0 && (
-          <p className="text-xs text-slate-400">添付はありません。</p>
+          <p className="text-xs text-slate-400">{t('添付はありません。')}</p>
         )}
         <StaffAttach requestId={req.id} />
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="mb-3 text-sm font-bold">ロケータ（6.7）</h2>
+        <h2 className="mb-3 text-sm font-bold">{t('ロケータ（6.7）')}</h2>
         <Row label="nq-id">
           {loc.nqId ? (
             <>
@@ -357,11 +359,11 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
                   同一 nq-id が {loc.nqCount} 個（序数 {loc.nqOrdinal}）— ループ描画
                 </span>
               ) : (
-                <span className="ml-2 text-xs text-emerald-600">文書内で一意</span>
+                <span className="ml-2 text-xs text-emerald-600">{t('文書内で一意')}</span>
               )}
             </>
           ) : (
-            <span className="text-xs text-slate-400">なし（注入されていない）</span>
+            <span className="text-xs text-slate-400">{t('なし（注入されていない）')}</span>
           )}
         </Row>
         <Row label="tag">{loc.tag}</Row>
@@ -377,7 +379,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         </Row>
         {req.target && (
           <>
-            <Row label="src属性">
+            <Row label={t("src属性")}>
               <code className="text-xs">{req.target.srcAttr ?? '—'}</code>
             </Row>
             <Row label="srcset">
@@ -391,7 +393,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
             <Row label="currentSrc">
               <code className="text-xs">{req.target.currentSrc ?? '—'}</code>
             </Row>
-            <Row label="原寸">
+            <Row label={t("原寸")}>
               {req.target.naturalW ?? '?'} × {req.target.naturalH ?? '?'}
             </Row>
           </>
@@ -399,7 +401,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="mb-3 text-sm font-bold">要素の現在値</h2>
+        <h2 className="mb-3 text-sm font-bold">{t('要素の現在値')}</h2>
         <div className="grid grid-cols-2 gap-x-6 text-xs sm:grid-cols-3">
           {Object.entries(req.computed ?? {}).map(([k, v]) => (
             <div key={k} className="border-t border-slate-100 py-1.5">
@@ -421,7 +423,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
             </div>
           ))}
           {(req.css_rules ?? []).length === 0 && (
-            <p className="text-xs text-slate-400">採取できたルールがありません</p>
+            <p className="text-xs text-slate-400">{t('採取できたルールがありません')}</p>
           )}
         </div>
 
@@ -432,7 +434,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-sm font-bold">参考デザイン</h2>
+        <h2 className="text-sm font-bold">{t('参考デザイン')}</h2>
         <p className="mt-1 mb-4 text-xs leading-relaxed text-slate-500">
           社内の検討用です。サイトには何も適用されません。
           <br />
@@ -455,7 +457,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="mb-3 text-sm font-bold">監査ログ（5.2）</h2>
+        <h2 className="mb-3 text-sm font-bold">{t('監査ログ（5.2）')}</h2>
         <div className="space-y-2">
           {(events ?? []).map((e) => (
             <div key={e.id} className="border-t border-slate-100 py-2 text-xs">

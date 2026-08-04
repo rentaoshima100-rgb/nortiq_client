@@ -1,5 +1,7 @@
 'use client';
 
+import { useT } from '@/lib/i18n-client';
+
 /**
  * スニペットをこちらから入れる。
  *
@@ -37,6 +39,7 @@ interface DeployRes {
 const btn = 'rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50';
 
 export function SnippetInstall({ projectId }: { projectId: string }) {
+  const t = useT();
   const [busy, setBusy] = useState<null | 'plan' | 'apply' | 'deploy'>(null);
   const [plan, setPlan] = useState<PlanRes | null>(null);
   const [applied, setApplied] = useState<ApplyRes | null>(null);
@@ -54,7 +57,7 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
       }
       return j;
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '通信に失敗しました');
+      setErr(e instanceof Error ? e.message : t('通信に失敗しました'));
       return null;
     }
   }
@@ -88,9 +91,9 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
   return (
     <div className="mt-5 rounded-lg border border-slate-200 p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm font-medium">こちらでリポジトリに入れる</span>
+        <span className="text-sm font-medium">{t('こちらでリポジトリに入れる')}</span>
         <button onClick={doPlan} disabled={!!busy} className={`${btn} border border-slate-300`}>
-          {busy === 'plan' ? '読んでいます…' : '何が変わるか見る'}
+          {busy === 'plan' ? t('読んでいます…') : t('何が変わるか見る')}
         </button>
         {err && <span className="text-sm text-amber-700">{err}</span>}
       </div>
@@ -113,9 +116,9 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
         <div className="mt-3 text-sm">
           <p className="text-slate-600">
             構成: <code className="text-xs">{plan.plan.stack}</code> ／ 反映のしかた:{' '}
-            <strong>{plan.mode === 'direct' ? '直接コミット' : 'PR を出すだけ'}</strong>
+            <strong>{plan.mode === 'direct' ? t('直接コミット') : t('PR を出すだけ')}</strong>
             {plan.mode !== 'direct' && (
-              <span className="text-slate-500">（マージは先方が行います）</span>
+              <span className="text-slate-500">{t('（マージは先方が行います）')}</span>
             )}
           </p>
 
@@ -129,7 +132,7 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-slate-500">書き換えるファイルはありません。</p>
+            <p className="mt-2 text-slate-500">{t('書き換えるファイルはありません。')}</p>
           )}
 
           {plan.plan.skipped.length > 0 && (
@@ -169,10 +172,10 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
               className={`${btn} mt-3 bg-slate-900 text-white`}
             >
               {busy === 'apply'
-                ? '書き込んでいます…'
+                ? t('書き込んでいます…')
                 : plan.mode === 'direct'
-                  ? 'コミットする'
-                  : 'PR を出す'}
+                  ? t('コミットする')
+                  : t('PR を出す')}
             </button>
           )}
         </div>
@@ -183,7 +186,7 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
           {applied.applied && applied.result ? (
             <>
               <p>
-                {applied.result.mode === 'pr' ? 'PR を出しました' : 'コミットしました'} —{' '}
+                {applied.result.mode === 'pr' ? t('PR を出しました') : t('コミットしました')} —{' '}
                 <a
                   className="underline"
                   href={applied.result.url}
@@ -195,21 +198,21 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
               </p>
               <p className="mt-1 text-xs text-slate-600">
                 {applied.result.mode === 'pr'
-                  ? 'マージされて本番に出るまで、招待は送らないでください。'
-                  : 'デプロイが終わるまで数分かかります。下で確認してから招待してください。'}
+                  ? t('マージされて本番に出るまで、招待は送らないでください。')
+                  : t('デプロイが終わるまで数分かかります。下で確認してから招待してください。')}
               </p>
             </>
           ) : (
-            <p>{applied.message ?? '変更はありませんでした。'}</p>
+            <p>{applied.message ?? t('変更はありませんでした。')}</p>
           )}
         </div>
       )}
 
       <div className="mt-4 border-t border-slate-200 pt-3">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm font-medium">本番に出たか確認する</span>
+          <span className="text-sm font-medium">{t('本番に出たか確認する')}</span>
           <button onClick={doDeploy} disabled={!!busy} className={`${btn} border border-slate-300`}>
-            {busy === 'deploy' ? '見ています…' : '確認'}
+            {busy === 'deploy' ? t('見ています…') : t('確認')}
           </button>
         </div>
         {deploy && (
@@ -223,7 +226,7 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
           >
             {deploy.canInvite ? (
               <p>
-                <strong>本番に出ています。招待を送れます。</strong>
+                <strong>{t('本番に出ています。招待を送れます。')}</strong>
                 {deploy.live.nqIdCount > 0 && (
                   <span className="ml-2 text-xs">
                     data-nq-id も {deploy.live.nqIdCount} 箇所入っています
@@ -233,7 +236,7 @@ export function SnippetInstall({ projectId }: { projectId: string }) {
             ) : (
               <>
                 <p>
-                  <strong>まだ招待を送らないでください。</strong> {deploy.reason}
+                  <strong>{t('まだ招待を送らないでください。')}</strong> {deploy.reason}
                 </p>
                 {deploy.deploy && (
                   <p className="mt-1 text-xs">

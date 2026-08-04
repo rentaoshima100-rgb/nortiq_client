@@ -1,5 +1,7 @@
 'use client';
 
+import { useT } from '@/lib/i18n-client';
+
 import { useActionState, useEffect, useState } from 'react';
 import { createProject, type CreateProjectState } from './actions';
 
@@ -15,6 +17,7 @@ interface RepoList {
 }
 
 export function NewProjectForm() {
+  const t = useT();
   const [state, action, pending] = useActionState(createProject, initial);
   const [repoList, setRepoList] = useState<RepoList | null>(null);
 
@@ -25,7 +28,7 @@ export function NewProjectForm() {
     fetch('/api/admin/github/repos')
       .then((r) => r.json())
       .then((j: RepoList) => alive && setRepoList(j))
-      .catch(() => alive && setRepoList({ error: 'リポジトリ一覧を取得できませんでした' }));
+      .catch(() => alive && setRepoList({ error: t('リポジトリ一覧を取得できませんでした') }));
     return () => {
       alive = false;
     };
@@ -34,12 +37,12 @@ export function NewProjectForm() {
   return (
     <form action={action} className="grid gap-3 sm:grid-cols-2">
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-600">案件名</label>
-        <input name="name" required placeholder="ループ建設 コーポレートサイト" className={input} />
+        <label className="mb-1 block text-xs font-medium text-slate-600">{t('案件名')}</label>
+        <input name="name" required placeholder={t("ループ建設 コーポレートサイト")} className={input} />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-600">クライアント名</label>
-        <input name="client_name" required placeholder="株式会社ループ建設" className={input} />
+        <label className="mb-1 block text-xs font-medium text-slate-600">{t('クライアント名')}</label>
+        <input name="client_name" required placeholder={t("株式会社ループ建設")} className={input} />
       </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-slate-600">
@@ -58,15 +61,15 @@ export function NewProjectForm() {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">スニペットキー</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600">{t('スニペットキー')}</label>
           <input name="snippet_key" required placeholder="loop-2026" className={input} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">スタック</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600">{t('スタック')}</label>
           <select name="stack" defaultValue="static" className={input}>
-            <option value="static">静的HTML</option>
+            <option value="static">{t('静的HTML')}</option>
             <option value="next">Next.js / Vite</option>
-            <option value="single-file">単一 index.html</option>
+            <option value="single-file">{t('単一 index.html')}</option>
           </select>
         </div>
       </div>
@@ -75,7 +78,7 @@ export function NewProjectForm() {
           リポジトリ（任意）
         </label>
         <select name="repo" defaultValue="" className={input}>
-          <option value="">選ばない（サイト側は手で入れる）</option>
+          <option value="">{t('選ばない（サイト側は手で入れる）')}</option>
           {repoList?.repos?.map((r) => (
             <option key={r.fullName} value={r.fullName}>
               {r.fullName}
@@ -84,12 +87,12 @@ export function NewProjectForm() {
         </select>
         <p className="mt-1 text-xs text-slate-400">
           {repoList == null
-            ? 'リポジトリを読み込んでいます…'
+            ? t('リポジトリを読み込んでいます…')
             : repoList.error
               ? repoList.error
               : repoList.repos?.length
-                ? '選ぶと、案件の作成と同時にスニペットを入れます。'
-                : 'App が入ったリポジトリがありません。'}
+                ? t('選ぶと、案件の作成と同時にスニペットを入れます。')
+                : t('App が入ったリポジトリがありません。')}
           {repoList?.installUrl && (
             <>
               {' '}
@@ -117,7 +120,7 @@ export function NewProjectForm() {
           disabled={pending}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {pending ? '作成中…' : '案件を作成'}
+          {pending ? t('作成中…') : t('案件を作成')}
         </button>
       </div>
     </form>

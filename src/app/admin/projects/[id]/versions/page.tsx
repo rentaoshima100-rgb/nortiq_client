@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getT } from '@/lib/i18n';
 import { notFound } from 'next/navigation';
 import { SNAPSHOTS_BUCKET } from '@/lib/env';
 import { classify, type LayoutEntry } from '@/lib/layout-diff.mjs';
@@ -31,6 +32,7 @@ export default async function VersionsPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
+  const t = await getT();
   const { id } = await params;
   const { from, to } = await searchParams;
   const db = adminDb();
@@ -89,7 +91,7 @@ export default async function VersionsPage({
 
       const readMap = async (path: string): Promise<LayoutEntry[]> => {
         const { data } = await db.storage.from(SNAPSHOTS_BUCKET).download(path);
-        if (!data) throw new Error('レイアウトマップを読めません');
+        if (!data) throw new Error(t('レイアウトマップを読めません'));
         return JSON.parse(await data.text());
       };
 
@@ -110,7 +112,7 @@ export default async function VersionsPage({
         });
       }
     } catch (e) {
-      compareError = e instanceof Error ? e.message : '比較に失敗しました';
+      compareError = e instanceof Error ? e.message : t('比較に失敗しました');
     }
   }
 
@@ -120,7 +122,7 @@ export default async function VersionsPage({
         <Link href={`/admin/projects/${id}`} className="text-xs text-slate-400 hover:text-slate-600">
           ← {project.name}
         </Link>
-        <h1 className="mt-1 text-lg font-bold">変更履歴</h1>
+        <h1 className="mt-1 text-lg font-bold">{t('変更履歴')}</h1>
         <p className="text-sm text-slate-500">
           ラウンドが確認済みになるたびに、その時点の撮影が1バージョンとして確定します。
           比較に追加の撮影は要りません。
@@ -137,7 +139,7 @@ export default async function VersionsPage({
         </p>
       ) : (
         <section className="rounded-xl border border-slate-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-bold">バージョン</h2>
+          <h2 className="mb-4 text-sm font-bold">{t('バージョン')}</h2>
           <ol className="relative space-y-0 border-l border-slate-200 pl-6">
             {versions.map((s, i) => (
               <li key={s.id} className="relative pb-5">
@@ -178,7 +180,7 @@ export default async function VersionsPage({
 
       {from && to && (
         <section className="rounded-xl border border-slate-200 bg-white p-6">
-          <h2 className="mb-1 text-sm font-bold">比較</h2>
+          <h2 className="mb-1 text-sm font-bold">{t('比較')}</h2>
           <p className="mb-4 text-xs text-slate-500">
             {COMPARE_VIEWPORT}px 幅のレイアウトマップで比較しています。
             レイアウトシフトだけの移動（moved）は差分に数えません（7.4）。
@@ -196,9 +198,9 @@ export default async function VersionsPage({
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-slate-400">
                 <tr>
-                  <th className="py-1.5 font-medium">ページ</th>
-                  <th className="py-1.5 font-medium">変更</th>
-                  <th className="py-1.5 font-medium">内訳</th>
+                  <th className="py-1.5 font-medium">{t('ページ')}</th>
+                  <th className="py-1.5 font-medium">{t('変更')}</th>
+                  <th className="py-1.5 font-medium">{t('内訳')}</th>
                 </tr>
               </thead>
               <tbody>

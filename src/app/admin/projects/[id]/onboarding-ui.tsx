@@ -1,5 +1,7 @@
 'use client';
 
+import { useT } from '@/lib/i18n-client';
+
 import { useState } from 'react';
 import type { SiteCheck, Step } from '@/lib/onboarding';
 import { SnippetInstall } from './snippet-install-ui';
@@ -11,6 +13,7 @@ interface Result {
 }
 
 export function Onboarding({ projectId, hasSiteUrl }: { projectId: string; hasSiteUrl: boolean }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<Result | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -28,7 +31,7 @@ export function Onboarding({ projectId, hasSiteUrl }: { projectId: string; hasSi
       }
       setRes(JSON.parse(text) as Result);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '通信に失敗しました');
+      setErr(e instanceof Error ? e.message : t('通信に失敗しました'));
     } finally {
       setBusy(false);
     }
@@ -51,9 +54,9 @@ export function Onboarding({ projectId, hasSiteUrl }: { projectId: string; hasSi
           disabled={busy || !hasSiteUrl}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          {busy ? 'サイトを見ています…' : res ? 'もう一度確認する' : 'サイトを確認して指示を作る'}
+          {busy ? t('サイトを見ています…') : res ? t('もう一度確認する') : t('サイトを確認して指示を作る')}
         </button>
-        {!hasSiteUrl && <span className="text-sm text-amber-700">サイト URL が未設定です</span>}
+        {!hasSiteUrl && <span className="text-sm text-amber-700">{t('サイト URL が未設定です')}</span>}
         {err && <span className="text-sm text-amber-700">{err}</span>}
       </div>
 
@@ -95,11 +98,11 @@ export function Onboarding({ projectId, hasSiteUrl }: { projectId: string; hasSi
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
               <span className="text-xs text-slate-600">
                 {remaining === 0
-                  ? 'すべて済んでいます。指示は不要です'
+                  ? t('すべて済んでいます。指示は不要です')
                   : `エンジニアに渡す指示（残り ${remaining} 件ぶん）`}
               </span>
               <button onClick={copy} className="rounded border border-slate-300 px-2 py-1 text-xs">
-                {copied ? 'コピーしました' : 'コピー'}
+                {copied ? t('コピーしました') : t('コピー')}
               </button>
             </div>
             <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap px-4 py-3 text-xs leading-relaxed text-slate-700">

@@ -1,10 +1,12 @@
 import Link from 'next/link';
+import { getT } from '@/lib/i18n';
 import { adminDb } from '@/lib/supabase/admin';
 import { NewProjectForm } from './new-project-form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminHome() {
+  const t = await getT();
   const db = adminDb();
   const { data: projects } = await db
     .from('projects')
@@ -21,16 +23,16 @@ export default async function AdminHome() {
   return (
     <div className="space-y-8">
       <section>
-        <h1 className="mb-4 text-lg font-bold">案件</h1>
+        <h1 className="mb-4 text-lg font-bold">{t('案件')}</h1>
         {projects && projects.length > 0 ? (
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs text-slate-500">
                 <tr>
-                  <th className="px-4 py-2.5 font-medium">案件</th>
-                  <th className="px-4 py-2.5 font-medium">サイト</th>
-                  <th className="px-4 py-2.5 font-medium">スニペットキー</th>
-                  <th className="px-4 py-2.5 font-medium">依頼</th>
+                  <th className="px-4 py-2.5 font-medium">{t('案件')}</th>
+                  <th className="px-4 py-2.5 font-medium">{t('サイト')}</th>
+                  <th className="px-4 py-2.5 font-medium">{t('スニペットキー')}</th>
+                  <th className="px-4 py-2.5 font-medium">{t('依頼')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -62,7 +64,7 @@ export default async function AdminHome() {
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="mb-4 text-sm font-bold">案件を追加</h2>
+        <h2 className="mb-4 text-sm font-bold">{t('案件を追加')}</h2>
         <NewProjectForm />
       </section>
     </div>

@@ -1,5 +1,7 @@
 'use client';
 
+import { useT } from '@/lib/i18n-client';
+
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -35,6 +37,7 @@ const STATUS_LABEL: Record<string, string> = {
  * 選んだものを**まとめて1回**投げたときに初めてコードが変わる。
  */
 export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[] }) {
+  const t = useT();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -78,7 +81,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
     setMsg(null);
     const r = await post({ projectId, action: 'plan' });
     setBusy(null);
-    if (!r.ok || r.json.ok === false) setErr(String(r.json.message ?? r.json.error ?? '失敗しました'));
+    if (!r.ok || r.json.ok === false) setErr(String(r.json.message ?? r.json.error ?? t('失敗しました')));
     else {
       setMsg(String(r.json.message ?? ''));
       router.refresh();
@@ -120,7 +123,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
     setResults([]);
     const r = await post({ projectId, action: 'inspect', ids });
     setBusy(null);
-    if (!r.ok || r.json.ok === false) setErr(String(r.json.message ?? r.json.error ?? '失敗しました'));
+    if (!r.ok || r.json.ok === false) setErr(String(r.json.message ?? r.json.error ?? t('失敗しました')));
     else setMsg(String(r.json.message ?? ''));
     setResults((r.json.results as typeof results) ?? []);
   }
@@ -128,7 +131,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
   async function apply() {
     const ids = [...picked];
     if (!ids.length) {
-      setErr('実行する指示を選んでください');
+      setErr(t('実行する指示を選んでください'));
       return;
     }
     setBusy('apply');
@@ -140,7 +143,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
     const r = await post({ projectId, action: 'apply', ids });
     setBusy(null);
     if (!r.ok || r.json.ok === false) {
-      setErr(String(r.json.message ?? r.json.error ?? '失敗しました'));
+      setErr(String(r.json.message ?? r.json.error ?? t('失敗しました')));
     } else {
       setMsg(String(r.json.message ?? ''));
       setPrUrl((r.json.prUrl as string) ?? null);
@@ -162,14 +165,14 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
           disabled={busy !== null}
           className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
-          {busy === 'plan' ? '依頼を読んでいます…' : '未処理の依頼から指示を作る'}
+          {busy === 'plan' ? t('依頼を読んでいます…') : t('未処理の依頼から指示を作る')}
         </button>
         <button
           onClick={inspect}
           disabled={busy !== null}
           className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
-          {busy === 'inspect' ? 'リポジトリを見ています…' : '材料を点検する（無料）'}
+          {busy === 'inspect' ? t('リポジトリを見ています…') : t('材料を点検する（無料）')}
         </button>
         <button
           onClick={apply}
@@ -177,7 +180,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {busy === 'apply'
-            ? 'ソースを読んで書き換えています…'
+            ? t('ソースを読んで書き換えています…')
             : `選んだ ${picked.size} 件をまとめて実行して PR を出す`}
         </button>
         {msg && <span className="text-sm text-slate-600">{msg}</span>}
@@ -194,7 +197,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
           入力 {usage.input.toLocaleString()} / うちキャッシュから{' '}
           {usage.cached.toLocaleString()} ・ 出力 {usage.output.toLocaleString()} トークン ≒{' '}
           <b>{usage.yen}円</b>
-          {usage.cached > 0 && <span className="ml-2 text-green-700">キャッシュが効いています</span>}
+          {usage.cached > 0 && <span className="ml-2 text-green-700">{t('キャッシュが効いています')}</span>}
         </p>
       )}
 
@@ -211,7 +214,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
                       : 'text-slate-500'
                 }
               >
-                #{r.seq} {r.status === 'applied' ? '反映' : r.status === 'failed' ? '失敗' : '見送り'}
+                #{r.seq} {r.status === 'applied' ? t('反映') : r.status === 'failed' ? t('失敗') : t('見送り')}
               </span>
               <span className="ml-2 text-slate-500">{r.detail}</span>
             </li>
@@ -272,7 +275,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
                 disabled={busy !== null}
                 className="rounded border border-slate-300 px-2 py-1 text-xs"
               >
-                {busy === r.id ? '保存中…' : '指示を保存'}
+                {busy === r.id ? t('保存中…') : t('指示を保存')}
               </button>
             )}
             <button
@@ -291,7 +294,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
             <div className="mt-3 rounded-lg border-l-4 border-blue-600 bg-blue-50 px-3 py-2">
               {r.answer ? (
                 <>
-                  <div className="text-xs font-bold text-blue-800">クライアントの回答</div>
+                  <div className="text-xs font-bold text-blue-800">{t('クライアントの回答')}</div>
                   <p className="mt-1 whitespace-pre-wrap text-sm">{r.answer}</p>
                   <p className="mt-1 text-xs text-slate-500">
                     この内容で指示を作り直してください。
@@ -299,7 +302,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
                 </>
               ) : r.asked ? (
                 <>
-                  <div className="text-xs font-bold text-blue-800">確認中（画面に出ています）</div>
+                  <div className="text-xs font-bold text-blue-800">{t('確認中（画面に出ています）')}</div>
                   <p className="mt-1 whitespace-pre-wrap text-sm">{r.asked}</p>
                   <button
                     onClick={() => ask(r, null)}
@@ -311,7 +314,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
                 </>
               ) : (
                 <>
-                  <div className="text-xs font-bold text-blue-800">クライアントに聞く</div>
+                  <div className="text-xs font-bold text-blue-800">{t('クライアントに聞く')}</div>
                   <textarea
                     defaultValue={r.question ?? ''}
                     onChange={(e) => setEdits((s2) => ({ ...s2, ['q:' + r.id]: e.target.value }))}
@@ -323,7 +326,7 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
                     disabled={busy !== null}
                     className="mt-2 rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white"
                   >
-                    {busy === r.id ? '出しています…' : 'この文でクライアントに出す'}
+                    {busy === r.id ? t('出しています…') : t('この文でクライアントに出す')}
                   </button>
                   <p className="mt-1 text-xs text-slate-500">
                     依頼者の画面に「確認したいこと」として出ます。文面は必ず読んでから出してください。

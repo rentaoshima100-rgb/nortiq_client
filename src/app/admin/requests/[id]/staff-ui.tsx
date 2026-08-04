@@ -1,5 +1,7 @@
 'use client';
 
+import { useT } from '@/lib/i18n-client';
+
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 
@@ -11,6 +13,7 @@ import { useRef, useState } from 'react';
  * 誰が「これは素材だ」と言ったかが要る。
  */
 export function StaffAttach({ requestId }: { requestId: string }) {
+  const t = useT();
   const router = useRouter();
   const file = useRef<HTMLInputElement>(null);
   const [kind, setKind] = useState<'material' | 'reference'>('reference');
@@ -20,7 +23,7 @@ export function StaffAttach({ requestId }: { requestId: string }) {
   async function upload() {
     const f = file.current?.files?.[0];
     if (!f) {
-      setErr('ファイルを選んでください');
+      setErr(t('ファイルを選んでください'));
       return;
     }
     setBusy(true);
@@ -39,7 +42,7 @@ export function StaffAttach({ requestId }: { requestId: string }) {
       });
       const j = (await res.json()) as { uploadUrl?: string; error?: string };
       if (!res.ok || !j.uploadUrl) {
-        setErr(j.error ?? '登録に失敗しました');
+        setErr(j.error ?? t('登録に失敗しました'));
         return;
       }
       const put = await fetch(j.uploadUrl, {
@@ -54,7 +57,7 @@ export function StaffAttach({ requestId }: { requestId: string }) {
       if (file.current) file.current.value = '';
       router.refresh();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '通信に失敗しました');
+      setErr(e instanceof Error ? e.message : t('通信に失敗しました'));
     } finally {
       setBusy(false);
     }
@@ -62,7 +65,7 @@ export function StaffAttach({ requestId }: { requestId: string }) {
 
   return (
     <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-3">
-      <p className="mb-2 text-xs font-medium text-slate-600">社内から画像を足す</p>
+      <p className="mb-2 text-xs font-medium text-slate-600">{t('社内から画像を足す')}</p>
       <div className="flex flex-wrap items-center gap-3">
         <input
           ref={file}
@@ -75,15 +78,15 @@ export function StaffAttach({ requestId }: { requestId: string }) {
           onChange={(e) => setKind(e.target.value as 'material' | 'reference')}
           className="rounded border border-slate-300 px-2 py-1 text-xs"
         >
-          <option value="reference">参考（イメージを伝えるだけ）</option>
-          <option value="material">素材（サイトに使う）</option>
+          <option value="reference">{t('参考（イメージを伝えるだけ）')}</option>
+          <option value="material">{t('素材（サイトに使う）')}</option>
         </select>
         <button
           onClick={upload}
           disabled={busy}
           className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
         >
-          {busy ? '追加しています…' : '追加する'}
+          {busy ? t('追加しています…') : t('追加する')}
         </button>
         {err && <span className="text-xs text-amber-700">{err}</span>}
       </div>
@@ -106,6 +109,7 @@ export interface AutoJob {
 
 /** 自動で当てた跡。無いと社内が二重に作業する */
 export function AutoFixMark({ job }: { job: AutoJob }) {
+  const t = useT();
   const done = !!job.merged_at;
   return (
     <div
@@ -123,7 +127,7 @@ export function AutoFixMark({ job }: { job: AutoJob }) {
               : 'rounded bg-blue-600 px-2 py-0.5 text-xs font-bold text-white'
           }
         >
-          {done ? '自動修正で完了' : '自動修正 — PR 待ち'}
+          {done ? t('自動修正で完了') : t('自動修正 — PR 待ち')}
         </span>
         {job.summary && <span className="text-sm">{job.summary}</span>}
         {job.pr_url && (
@@ -139,8 +143,8 @@ export function AutoFixMark({ job }: { job: AutoJob }) {
       </div>
       <p className="mt-1 text-xs text-slate-500">
         {done
-          ? 'PR がマージされ、本番に出ています。'
-          : 'まだマージされていません。PR を確認してマージすると本番に出ます。自動マージはしません。'}
+          ? t('PR がマージされ、本番に出ています。')
+          : t('まだマージされていません。PR を確認してマージすると本番に出ます。自動マージはしません。')}
       </p>
     </div>
   );
@@ -148,6 +152,7 @@ export function AutoFixMark({ job }: { job: AutoJob }) {
 
 /** 案件ページから手で走らせる */
 export function RunAutoText({ projectId }: { projectId: string }) {
+  const t = useT();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<{
@@ -177,7 +182,7 @@ export function RunAutoText({ projectId }: { projectId: string }) {
       setOut(j);
       router.refresh();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '通信に失敗しました');
+      setErr(e instanceof Error ? e.message : t('通信に失敗しました'));
     } finally {
       setBusy(false);
     }
@@ -191,7 +196,7 @@ export function RunAutoText({ projectId }: { projectId: string }) {
           disabled={busy}
           className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
         >
-          {busy ? '依頼を見ています…' : 'いま走らせる'}
+          {busy ? t('依頼を見ています…') : t('いま走らせる')}
         </button>
         {err && <span className="text-xs text-amber-700">{err}</span>}
         {out && !err && <span className="text-xs text-slate-600">{out.message}</span>}
@@ -216,7 +221,7 @@ export function RunAutoText({ projectId }: { projectId: string }) {
                 }
               >
                 #{r.seq}{' '}
-                {r.status === 'applied' ? '反映' : r.status === 'failed' ? '失敗' : '見送り'}
+                {r.status === 'applied' ? t('反映') : r.status === 'failed' ? t('失敗') : t('見送り')}
               </span>
               <span className="ml-2 text-slate-500">{r.detail}</span>
             </li>
@@ -242,6 +247,7 @@ export function FixThisRequest({
   projectId: string;
   requestId: string;
 }) {
+  const t = useT();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
@@ -273,7 +279,7 @@ export function FixThisRequest({
       }
       router.refresh();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '通信に失敗しました');
+      setErr(e instanceof Error ? e.message : t('通信に失敗しました'));
     } finally {
       setBusy(false);
     }
@@ -289,12 +295,12 @@ export function FixThisRequest({
         ここに書いたものは依頼文より優先される。
       */}
       <label className="mb-3 block">
-        <span className="text-xs font-medium text-slate-600">補足の指示（任意）</span>
+        <span className="text-xs font-medium text-slate-600">{t('補足の指示（任意）')}</span>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={2}
-          placeholder="例: 許可番号は 派13-300000 です／文字は1段だけ小さく／ヘッダーは触らないで"
+          placeholder={t("例: 許可番号は 派13-300000 です／文字は1段だけ小さく／ヘッダーは触らないで")}
           className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
         />
         <span className="mt-1 block text-xs text-slate-400">
@@ -308,11 +314,11 @@ export function FixThisRequest({
           disabled={busy}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          {busy ? 'ソースを読んでいます…' : 'この依頼を直させる'}
+          {busy ? t('ソースを読んでいます…') : t('この依頼を直させる')}
         </button>
         <span className="text-xs text-slate-500">
           文言と文字まわりだけ。PR を出すところまで行います。
-          <b>自動マージはしません。</b>
+          <b>{t('自動マージはしません。')}</b>
         </span>
         {err && <span className="text-sm text-amber-700">{err}</span>}
       </div>
@@ -330,7 +336,7 @@ export function FixThisRequest({
                       : 'font-medium text-slate-600'
                 }
               >
-                {r.status === 'applied' ? '反映しました' : r.status === 'failed' ? '失敗' : '当てられません'}
+                {r.status === 'applied' ? t('反映しました') : r.status === 'failed' ? t('失敗') : t('当てられません')}
               </span>
               <span className="ml-2 text-slate-600">{r.detail}</span>
             </p>
@@ -378,6 +384,7 @@ export function AskClient({
   answer: string | null;
   answeredAt: string | null;
 }) {
+  const t = useT();
   const router = useRouter();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -400,7 +407,7 @@ export function AskClient({
       setText('');
       router.refresh();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '通信に失敗しました');
+      setErr(e instanceof Error ? e.message : t('通信に失敗しました'));
     } finally {
       setBusy(false);
     }
@@ -408,10 +415,10 @@ export function AskClient({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6">
-      <h2 className="text-sm font-bold">クライアントに確認する</h2>
+      <h2 className="text-sm font-bold">{t('クライアントに確認する')}</h2>
       <p className="mt-1 text-xs leading-relaxed text-slate-500">
         依頼だけでは決められないこと（番号、正式名称、どの写真か）を、出した本人に聞けます。
-        依頼者のパネルに<b>「保留中」</b>として出ます。
+        依頼者のパネルに<b>{t('「保留中」')}</b>として出ます。
       </p>
 
       {answer ? (
@@ -425,14 +432,14 @@ export function AskClient({
 
       {question ? (
         <div className="mt-4 rounded-lg border-l-4 border-blue-600 bg-blue-50 px-3 py-2">
-          <div className="text-xs font-bold text-blue-800">確認中（相手の画面に出ています）</div>
+          <div className="text-xs font-bold text-blue-800">{t('確認中（相手の画面に出ています）')}</div>
           <p className="mt-1 whitespace-pre-wrap text-sm">{question}</p>
           <button
             onClick={() => send(null)}
             disabled={busy}
             className="mt-2 text-xs text-slate-500 underline disabled:opacity-50"
           >
-            {busy ? '取り下げています…' : '取り下げる'}
+            {busy ? t('取り下げています…') : t('取り下げる')}
           </button>
         </div>
       ) : (
@@ -441,7 +448,7 @@ export function AskClient({
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={2}
-            placeholder="例: 派遣事業の許可番号をお教えいただけますか。"
+            placeholder={t("例: 派遣事業の許可番号をお教えいただけますか。")}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
           <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -450,7 +457,7 @@ export function AskClient({
               disabled={busy || !text.trim()}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              {busy ? '出しています…' : 'クライアントに聞く'}
+              {busy ? t('出しています…') : t('クライアントに聞く')}
             </button>
             {err && <span className="text-sm text-amber-700">{err}</span>}
           </div>
