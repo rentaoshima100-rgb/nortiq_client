@@ -226,3 +226,113 @@ export function RunAutoText({ projectId }: { projectId: string }) {
     </div>
   );
 }
+
+/**
+ * この依頼だけを AI に直させる。
+ *
+ * 自動は「迷ったら人に回す」で止まる。社内が中身を見て
+ * 「これは直せる」と判断したときは、その判断を通す。
+ * **判断の門だけを開ける。機械の安全確認は外さない**
+ * （構造を変えていないか、対象が一意か、当てる直前の再検証）。
+ */
+export function FixThisRequest({
+  projectId,
+  requestId,
+}: {
+  projectId: string;
+  requestId: string;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [out, setOut] = useState<{
+    message: string;
+    prUrl?: string;
+    results: { seq: number; status: string; detail: string }[];
+  } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setErr(null);
+    setOut(null);
+    try {
+      const res = await fetch('/api/admin/auto-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, requestId }),
+      });
+      const text = await res.text();
+      try {
+        setOut(JSON.parse(text) as typeof out);
+      } catch {
+        setErr(
+          res.status === 504 ? '時間内に終わりませんでした（504）' : `応答が不正です（${res.status}）`,
+        );
+        return;
+      }
+      router.refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '通信に失敗しました');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const r = out?.results?.[0];
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={run}
+          disabled={busy}
+          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {busy ? 'ソースを読んでいます…' : 'この依頼を直させる'}
+        </button>
+        <span className="text-xs text-slate-500">
+          文言と文字まわりだけ。PR を出すところまで行います。
+          <b>自動マージはしません。</b>
+        </span>
+        {err && <span className="text-sm text-amber-700">{err}</span>}
+      </div>
+
+      {out && (
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          {r ? (
+            <p className="text-sm">
+              <span
+                className={
+                  r.status === 'applied'
+                    ? 'font-medium text-green-700'
+                    : r.status === 'failed'
+                      ? 'font-medium text-red-700'
+                      : 'font-medium text-slate-600'
+                }
+              >
+                {r.status === 'applied' ? '反映しました' : r.status === 'failed' ? '失敗' : '当てられません'}
+              </span>
+              <span className="ml-2 text-slate-600">{r.detail}</span>
+            </p>
+          ) : (
+            <p className="text-sm text-slate-600">{out.message}</p>
+          )}
+          {out.prUrl && (
+            <a
+              href={out.prUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-block text-sm text-green-700 underline"
+            >
+              PR を開く
+            </a>
+          )}
+          <p className="mt-2 text-xs text-slate-400">
+            当てられなかった理由は、材料が足りないことがほとんどです。
+            対象がリポジトリに無い、値が依頼文に書かれていない、など。
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}

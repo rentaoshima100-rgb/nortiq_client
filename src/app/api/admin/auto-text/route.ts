@@ -19,23 +19,28 @@ export async function POST(req: Request) {
   if (!staff) return Response.json({ error: '権限がありません' }, { status: 403 });
 
   let projectId: string;
+  let requestId: string | undefined;
   try {
-    const b = (await req.json()) as { projectId?: string };
+    const b = (await req.json()) as { projectId?: string; requestId?: string };
     if (!b.projectId) throw new Error('projectId がありません');
     projectId = b.projectId;
+    requestId = b.requestId;
   } catch {
     return Response.json({ error: 'リクエストが不正です' }, { status: 400 });
   }
 
-  const out = await runAutoText(projectId, { manual: true });
+  // 依頼を名指しされたときは、種別と分類の門を通す。
+  // 社内が「これを直せ」と判断している。機械の安全確認は外さない。
+  const out = await runAutoText(projectId, { manual: true, requestId });
 
   await logEvent({
     projectId,
     actor: staffActor(staff),
     entity: 'project',
     entityId: projectId,
-    action: 'auto_text.run_manually',
+    action: requestId ? 'auto_text.run_for_request' : 'auto_text.run_manually',
     after: {
+      requestId: requestId ?? null,
       message: out.message,
       applied: out.results.filter((r) => r.status === 'applied').length,
       skipped: out.results.filter((r) => r.status === 'skipped').length,

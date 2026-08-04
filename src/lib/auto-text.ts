@@ -307,7 +307,7 @@ export interface AutoResult {
  */
 export async function runAutoText(
   projectId: string,
-  opts: { manual?: boolean } = {},
+  opts: { manual?: boolean; requestId?: string } = {},
 ): Promise<{
   ok: boolean;
   message: string;
@@ -357,21 +357,21 @@ export async function runAutoText(
     }
   }
 
-  // 未処理の依頼
-  const { data: reqs } = await db
+  // 未処理の依頼。1件を名指しされたときは、状態を問わずそれだけを見る
+  let q = db
     .from('requests')
     .select('id, seq, body, category, subtype, status, outer_html, css_rules, nq_id')
-    .eq('project_id', projectId)
-    .eq('status', 'received')
-    .order('seq')
-    .limit(20);
+    .eq('project_id', projectId);
+  q = opts.requestId ? q.eq('id', opts.requestId) : q.eq('status', 'received');
+  const { data: reqs } = await q.order('seq').limit(opts.requestId ? 1 : 20);
   if (!reqs?.length) return { ok: true, message: '対象の依頼がありません', results };
 
   const { data: jobs } = await db
     .from('ai_jobs')
     .select('request_id')
     .in('request_id', reqs.map((r) => r.id));
-  const done = new Set((jobs ?? []).map((j) => j.request_id));
+  // 名指しで押されたときは、前に当てていてもやり直す
+  const done = opts.requestId ? new Set<string>() : new Set((jobs ?? []).map((j) => j.request_id));
 
   // ── 分類。未分類のものだけ、その場で仕分ける
   const targets: typeof reqs = [];
@@ -399,8 +399,9 @@ export async function runAutoText(
         category = c.category;
         subtype = c.subtype === 'none' ? null : c.subtype;
 
-        // 自動反映は「自信が高い」ものだけ。迷いがあるものは人が見る
-        if (c.confidence !== 'high') {
+        // 自動反映は「自信が高い」ものだけ。迷いがあるものは人が見る。
+        // ただし社内が名指しで押したときは、その判断を優先する
+        if (c.confidence !== 'high' && !opts.requestId) {
           results.push({
             requestId: r.id,
             seq: r.seq,
@@ -415,7 +416,9 @@ export async function runAutoText(
       }
     }
 
-    if (category !== 'minor' || (subtype !== 'text' && subtype !== 'style')) {
+    // 名指しのときは種別で止めない。社内が「これを直せ」と言っている。
+    // 当てられなければモデルが applicable: false で理由を返す
+    if (!opts.requestId && (category !== 'minor' || (subtype !== 'text' && subtype !== 'style'))) {
       results.push({
         requestId: r.id,
         seq: r.seq,
@@ -453,7 +456,9 @@ export async function runAutoText(
     .map((e) => e.path)
     .slice(0, 40);
 
-  const branch = `nq/auto-text-${new Date().toISOString().slice(0, 10)}`;
+  const branch = opts.requestId
+    ? `nq/auto-text-${targets[0]?.seq ?? 'x'}-${Date.now().toString(36).slice(-4)}`
+    : `nq/auto-text-${new Date().toISOString().slice(0, 10)}`;
   let branchReady = false;
   const applied: { seq: number; summary: string; jobId?: string }[] = [];
   const client = new Anthropic();
@@ -650,7 +655,10 @@ export async function runAutoText(
   }
 
   const pr = await gh.createPull(inst, owner, repo, {
-    title: `文言・文字まわりの修正 ${applied.length}件`,
+    title:
+      applied.length === 1
+        ? `依頼 #${applied[0].seq}: ${applied[0].summary}`
+        : `文言・文字まわりの修正 ${applied.length}件`,
     head: branch,
     base,
     body:

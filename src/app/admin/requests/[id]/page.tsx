@@ -11,7 +11,7 @@ import {
   type BatchView,
   type ProposalView,
 } from './design-ui';
-import { AutoFixMark, StaffAttach, type AutoJob } from './staff-ui';
+import { AutoFixMark, FixThisRequest, StaffAttach, type AutoJob } from './staff-ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -179,6 +179,8 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
           <AutoFixMark job={autoJob} />
         </div>
       )}
+
+      <FixThisRequest projectId={req.project_id} requestId={req.id} />
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <p className="whitespace-pre-wrap text-sm">{req.body}</p>
