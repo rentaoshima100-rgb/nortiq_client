@@ -14,6 +14,7 @@ import {
 } from '@/lib/rounds';
 import { adminDb } from '@/lib/supabase/admin';
 import type { SiteTokens } from '@/lib/site-tokens-store';
+import { ClientText, TranslateButton } from '@/app/admin/translate-ui';
 import { Onboarding } from './onboarding-ui';
 import { RunAutoText } from '@/app/admin/requests/[id]/staff-ui';
 import type { Locator } from '@/lib/types';
@@ -118,7 +119,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     db
       .from('requests')
       .select(
-        'id, seq, body, category, subtype, status, page_path, viewport_w, locator, outer_html, created_at',
+        'id, seq, body, body_en, translated_at, category, subtype, status, page_path, viewport_w, locator, outer_html, created_at',
       )
       .eq('project_id', id)
       .order('seq', { ascending: false })
@@ -619,10 +620,19 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       )}
 
       <section>
-        <h2 className="mb-3 text-sm font-bold">
-          {t('修正依頼')}{' '}
-          <span className="text-slate-400">{t('（{n}件）', { n: requests?.length ?? 0 })}</span>
-        </h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-bold">
+            {t('修正依頼')}{' '}
+            <span className="text-slate-400">{t('（{n}件）', { n: requests?.length ?? 0 })}</span>
+          </h2>
+          {/* 依頼文はクライアントが打ったもの。辞書では訳せないので、
+              EN で見ている人が押したときだけ訳す（TranslateButton が
+              日本語のときは何も描かない） */}
+          <TranslateButton
+            projectId={project.id}
+            pending={(requests ?? []).filter((r) => !r.translated_at).length}
+          />
+        </div>
         {requests && requests.length > 0 ? (
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <table className="w-full text-sm">
@@ -697,7 +707,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                               href={`/admin/requests/${r.id}`}
                               className="font-medium text-blue-700 underline decoration-blue-200 underline-offset-2 hover:decoration-blue-500"
                             >
-                              {r.body.length > 60 ? r.body.slice(0, 60) + '…' : r.body}
+                              <ClientText
+                                ja={r.body.length > 60 ? `${r.body.slice(0, 60)}…` : r.body}
+                                en={
+                                  r.body_en && r.body_en.length > 60
+                                    ? `${r.body_en.slice(0, 60)}…`
+                                    : r.body_en
+                                }
+                              />
                             </Link>
                             <span className="ml-1 whitespace-nowrap text-xs text-blue-700">
                               {t('詳細・参考デザイン →')}

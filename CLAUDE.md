@@ -42,7 +42,9 @@
 | 13 | **他人のリポジトリへの書き込みは既定 PR**。直接コミットは案件ごとに明示的に許可されたときだけ（`projects.allow_direct_commit`） | — | `src/lib/snippet-install.ts` |
 | 14 | **同じリポジトリに複数案件がぶら下がっているとき、webhook は何もしない**。取り違えて「出た」と記録するほうが害が大きい | — | `api/gh/webhook` の `projectForRepo` |
 
-11〜14 は設計書 v1.4 に無い。Tier 0 と導入の自動化を入れたときに決めたもの。
+| 15 | **英語化するのは社内が読む文だけ**。モデルに渡すプロンプト、`material-check` の `facts`、ウィジェット・LINE・CORS の文言は日本語のまま | — | `src/lib/i18n-dict.ts` / `scripts/i18n-keys.mjs` |
+
+11〜15 は設計書 v1.4 に無い。Tier 0 と導入の自動化を入れたときに決めたもの（15 は社内 UI の英語化を入れたとき）。
 
 ---
 
@@ -70,6 +72,22 @@
 - 採番は必ず `next_request_seq()`（`project_counters`）。`max(seq)+1` は
   同時投稿で unique 制約に当たる（5.3）
 - レート制限は `events` を数えている（Redis を持ち込まないための割り切り）
+
+## 社内 UI の言語（日本語 / EN）
+
+- 辞書の**鍵は日本語そのもの**（`src/lib/i18n-dict.ts`）。鍵を別に振らないのは、
+  後から入れる i18n では鍵の付け直しが最大の作業になり、しかも**訳が抜けたときに
+  画面が空になる**ため。抜けていれば日本語がそのまま出る
+- 値を差し込む文は `t('依頼 #{seq}', { seq })`。**テンプレート文字列を鍵にしない**
+  （件数が変わるたび別の鍵になって当たらない）
+- `src/lib/*` は `cookies()` を読めない。入口（API ルート / サーバーアクション）で
+  `getT()` を作って `opts.t` で渡す。既定は恒等関数なので、Cookie の無い
+  `/api/admin/tick`（cron）は日本語のまま動く
+- **クライアントが打った依頼文は辞書では訳せない。** 押したときだけモデルを呼び、
+  `requests.body_en` / `client_answer_en` に保存する（`src/lib/translate.ts`）。
+  原文は消さない。ボタンは EN で見ているときしか描画しない
+- 抜けの確認は `node scripts/i18n-keys.mjs`（未訳 0 が正）と
+  `node scripts/i18n-scan.mjs`（`t()` の外に残った日本語）
 
 ## まだ無いもの（意図的に）
 

@@ -12,6 +12,7 @@ import {
   type BatchView,
   type ProposalView,
 } from './design-ui';
+import { ClientText, TranslateButton } from '@/app/admin/translate-ui';
 import { AskClient, AutoFixMark, FixThisRequest, StaffAttach, type AutoJob } from './staff-ui';
 
 export const dynamic = 'force-dynamic';
@@ -69,6 +70,15 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const req = data as RequestRow;
   const loc = req.locator as Locator;
   const pos = positionInPage(loc);
+  // RequestRow に無い列（訳と、クライアントへの確認）
+  const tr = data as unknown as {
+    body_en: string | null;
+    client_answer_en: string | null;
+    translated_at: string | null;
+    client_question: string | null;
+    client_answer: string | null;
+    client_answered_at: string | null;
+  };
 
   const [{ data: atts }, { data: events }, { data: project }] = await Promise.all([
     db.from('attachments').select('*').eq('request_id', id).order('created_at'),
@@ -173,7 +183,15 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         >
           ← {project?.name ?? t('案件')}
         </Link>
-        <h1 className="mt-1 text-lg font-bold">{t('依頼 #{seq}', { seq: req.seq })}</h1>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-lg font-bold">{t('依頼 #{seq}', { seq: req.seq })}</h1>
+          {/* この1件だけ訳す。force は「訳し直す」に相当する */}
+          <TranslateButton
+            projectId={req.project_id}
+            ids={[req.id]}
+            pending={tr.translated_at ? 0 : 1}
+          />
+        </div>
       </div>
 
       {autoJob && (
@@ -186,13 +204,16 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
 
       <AskClient
         requestId={req.id}
-        question={(req as unknown as { client_question: string | null }).client_question}
-        answer={(req as unknown as { client_answer: string | null }).client_answer}
-        answeredAt={(req as unknown as { client_answered_at: string | null }).client_answered_at}
+        question={tr.client_question}
+        answer={tr.client_answer}
+        answerEn={tr.client_answer_en}
+        answeredAt={tr.client_answered_at}
       />
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <p className="whitespace-pre-wrap text-sm">{req.body}</p>
+        <p className="whitespace-pre-wrap text-sm">
+          <ClientText ja={req.body} en={tr.body_en} />
+        </p>
         <div className="mt-4">
           <Row label={t("受付")}>{fmt(req.created_at)}</Row>
           <Row label={t("ページ")}>{req.page_path}</Row>

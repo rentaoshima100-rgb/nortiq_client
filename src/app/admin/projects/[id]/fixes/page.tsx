@@ -21,18 +21,23 @@ export default async function FixesPage({ params }: { params: Promise<{ id: stri
   const { data: raw } = await db
     .from('fix_instructions')
     .select(
-      'id, request_id, instruction, target_hint, doable, reason, status, source, pr_url, question, created_at, requests(seq, body, client_question, client_answer)',
+      'id, request_id, instruction, target_hint, doable, reason, status, source, pr_url, question, created_at, requests(seq, body, body_en, client_question, client_answer, client_answer_en)',
     )
     .eq('project_id', id)
     .order('created_at', { ascending: false })
     .limit(200);
 
-  const rows: FixRow[] = ((raw ?? []) as unknown as (Omit<FixRow, 'seq' | 'body' | 'asked' | 'answer'> & {
+  const rows: FixRow[] = ((raw ?? []) as unknown as (Omit<
+    FixRow,
+    'seq' | 'body' | 'bodyEn' | 'asked' | 'answer' | 'answerEn'
+  > & {
     requests: {
       seq: number;
       body: string;
+      body_en: string | null;
       client_question: string | null;
       client_answer: string | null;
+      client_answer_en: string | null;
     } | null;
   })[])
     .filter((r) => r.requests)
@@ -40,8 +45,10 @@ export default async function FixesPage({ params }: { params: Promise<{ id: stri
       ...r,
       seq: r.requests!.seq,
       body: r.requests!.body,
+      bodyEn: r.requests!.body_en,
       asked: r.requests!.client_question,
       answer: r.requests!.client_answer,
+      answerEn: r.requests!.client_answer_en,
     }))
     .sort((a, b) => a.seq - b.seq);
 

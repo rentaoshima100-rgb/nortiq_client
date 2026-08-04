@@ -10,6 +10,18 @@
  * あちらの言語は案件ごとの話で、今は日本語のみ。
  */
 export const DICT: Record<string, string> = {
+  // ── 依頼文の英訳（クライアントが打った文。辞書では訳せないぶん）
+  '{n}件を訳しました': 'Translated {n}',
+  '{n}件を訳しました（{left}件は返りませんでした）': 'Translated {n} ({left} came back empty)',
+  依頼文を英訳する: 'Translate the requests',
+  '依頼文を英訳する（{n}件）': 'Translate the requests ({n} left)',
+  原文: 'original',
+  英訳: 'English',
+  '訳しています…': 'Translating…',
+  訳し直す: 'Re-translate',
+  訳すものはありません: 'Nothing to translate',
+  '訳せませんでした: {why}': 'Could not translate: {why}',
+
   // ── 共通
   社内: 'Internal',
   ログアウト: 'Sign out',

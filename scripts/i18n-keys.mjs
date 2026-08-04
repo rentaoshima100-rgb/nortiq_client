@@ -30,6 +30,7 @@ const LIB = [
   'src/lib/material-check.ts',
   'src/lib/auto-text.ts',
   'src/lib/fix-instructions.ts',
+  'src/lib/translate.ts',
 ];
 const files = [
   ...walk('src/app/admin'),

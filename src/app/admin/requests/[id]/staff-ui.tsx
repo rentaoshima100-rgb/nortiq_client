@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocale, useT } from '@/lib/i18n-client';
+import { ClientText } from '@/app/admin/translate-ui';
 
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
@@ -379,11 +380,14 @@ export function AskClient({
   requestId,
   question,
   answer,
+  answerEn,
   answeredAt,
 }: {
   requestId: string;
   question: string | null;
   answer: string | null;
+  /** 返答の英訳。訳していなければ null。原文は消さない */
+  answerEn?: string | null;
   answeredAt: string | null;
 }) {
   const t = useT();
@@ -435,7 +439,9 @@ export function AskClient({
                 })
               : t('回答がありました')}
           </div>
-          <p className="mt-1 whitespace-pre-wrap text-sm">{answer}</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm">
+            <ClientText ja={answer} en={answerEn ?? null} />
+          </p>
         </div>
       ) : null}
 

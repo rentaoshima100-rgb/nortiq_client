@@ -1,6 +1,7 @@
 'use client';
 
 import { useT } from '@/lib/i18n-client';
+import { ClientText, TranslateButton } from '@/app/admin/translate-ui';
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -18,9 +19,12 @@ export interface FixRow {
   question: string | null;
   seq: number;
   body: string;
+  /** 依頼文の英訳。訳していなければ null。原文は body のまま残る */
+  bodyEn: string | null;
   /** いまクライアントに出している質問。出していなければ null */
   asked: string | null;
   answer: string | null;
+  answerEn: string | null;
 }
 
 /**
@@ -178,6 +182,11 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
             ? t('ソースを読んで書き換えています…')
             : t('選んだ {n} 件をまとめて実行して PR を出す', { n: picked.size })}
         </button>
+        {/* 依頼文はクライアントが打ったもの。EN で見ている人だけに出る */}
+        <TranslateButton
+          projectId={projectId}
+          pending={rows.filter((r) => !r.bodyEn).length}
+        />
         {msg && <span className="text-sm text-slate-600">{msg}</span>}
         {err && <span className="text-sm text-amber-700">{err}</span>}
         {prUrl && (
@@ -253,7 +262,9 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-xs text-slate-500">{r.body.slice(0, 90)}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                <ClientText ja={r.body.slice(0, 90)} en={r.bodyEn?.slice(0, 90) ?? null} />
+              </p>
             </div>
           </label>
 
@@ -293,7 +304,9 @@ export function FixList({ projectId, rows }: { projectId: string; rows: FixRow[]
               {r.answer ? (
                 <>
                   <div className="text-xs font-bold text-blue-800">{t('クライアントの回答')}</div>
-                  <p className="mt-1 whitespace-pre-wrap text-sm">{r.answer}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm">
+                    <ClientText ja={r.answer} en={r.answerEn} />
+                  </p>
                   <p className="mt-1 text-xs text-slate-500">
                     {t('この内容で指示を作り直してください。')}
                   </p>
