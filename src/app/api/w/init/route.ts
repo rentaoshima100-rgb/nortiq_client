@@ -25,7 +25,13 @@ export async function POST(req: Request) {
 
   return json(
     {
-      project: { name: auth.project.name, clientName: auth.project.client_name },
+      project: {
+        name: auth.project.name,
+        clientName: auth.project.client_name,
+        // 目印は文言を頼りにしている。直すとその文言が変わるので外れることがある。
+        // 画面の写真があれば、位置も見た目も一枚で残る（案件ごとに必須化できる）
+        requireScreenshot: auth.project.require_screenshot === true,
+      },
       limits: {
         maxItemsPerRound: auth.project.max_items_per_round,
         freeRounds: auth.project.free_rounds,

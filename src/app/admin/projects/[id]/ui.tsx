@@ -204,6 +204,7 @@ export function ProjectSettings({
     rounds_enabled: boolean;
     has_nq_id: boolean;
     asset_swap_enabled: boolean;
+    require_screenshot: boolean;
     ai_enabled: boolean;
     free_rounds: number;
     max_items_per_round: number;
@@ -313,6 +314,9 @@ export function ProjectSettings({
             </span>
           </span>
         </label>
+        {/* 画面の写真は案件によらず必須にした。目印は文言を頼りにしていて、
+            直せばその文言が変わる。写真だけが確実に残る手がかりなので、
+            切り替えを置かない（切れる設定があると、いつか切られる） */}
         <label className="flex items-start gap-2 text-sm">
           <input
             type="checkbox"

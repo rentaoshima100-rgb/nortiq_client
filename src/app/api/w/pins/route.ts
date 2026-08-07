@@ -25,7 +25,19 @@ export async function GET(req: Request) {
     .select('id, seq, status, category, body, locator, locator_live, created_at')
     .eq('project_id', auth.project.id)
     .eq('page_path', path)
-    .neq('status', 'wont_fix')
+    /*
+     * 完了（done）はサイトに出さない。
+     *
+     * 直し終えた箇所に番号が浮いていても読む側の役に立たない。そして
+     * **目印が外れやすいのはまさに完了分**で、直したことで本文が変わり、
+     * 手がかりが同時に死ぬ。地図から降ろして、記録の側に残す。
+     * 「何をしたか」（resolution）を一覧に出すので、黙って消えはしない。
+     *
+     * 見送り（wont_fix）は残す。以前は除いていたが、一覧には出していたので
+     * **片方にだけ載っている**状態になり、「選び直そうとしたら見つからない」
+     * という形で出た（#23）。地図の側だけ欠けているのは筋が通らない。
+     */
+    .neq('status', 'done')
     .order('seq', { ascending: true })
     .limit(200);
 

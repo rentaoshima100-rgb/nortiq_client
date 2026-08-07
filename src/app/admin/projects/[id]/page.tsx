@@ -15,6 +15,8 @@ import {
 import { adminDb } from '@/lib/supabase/admin';
 import type { SiteTokens } from '@/lib/site-tokens-store';
 import { ClientText, TranslateButton } from '@/app/admin/translate-ui';
+import { DraftResolutions } from '@/app/admin/resolution-ui';
+import { Handoff } from '@/app/admin/handoff-ui';
 import { Onboarding } from './onboarding-ui';
 import { RunAutoText } from '@/app/admin/requests/[id]/staff-ui';
 import type { Locator } from '@/lib/types';
@@ -119,7 +121,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     db
       .from('requests')
       .select(
-        'id, seq, body, body_en, translated_at, category, subtype, status, page_path, viewport_w, locator, outer_html, created_at',
+        'id, seq, body, body_en, translated_at, category, subtype, status, page_path, viewport_w, locator, outer_html, created_at, resolution',
       )
       .eq('project_id', id)
       .order('seq', { ascending: false })
@@ -213,41 +215,35 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-sm font-bold">{t('文言・文字まわりの自動反映')}</h2>
-        <p className="mb-4 mt-1 text-xs leading-relaxed text-slate-500">
-          {project.ai_enabled
-            ? t('1時間ごとに動きます。待てないときはここから走らせてください（デバウンスを飛ばします）。')
-            : t('この案件では自動反映を切っています。ここから押した場合だけ走ります。')}
-          <br />
-          {t('対象は文言と文字の大小・太さ・行間・字間・色だけです。')}
-          <b>{t('自動マージはしません。')}</b>
+      {/* ここが主役。このツールはコードを触らず、実装できる形にして渡す */}
+      <Handoff projectId={project.id} />
+
+      {/*
+        当てる経路は畳んでおく。
+        当てると、指していた文言そのものが変わる。ピンはその文言を頼りに
+        しているので**直した瞬間に目印が外れる**（実測で 12 件中 5 件）。
+        nq-id も「同じ親の中で同じタグの何番目か」から作っているため、
+        注記を1行足すだけで後ろが全部振り直される。
+        「当てる」と「場所を覚えておく」は同じ仕組みの中で衝突する。
+        消さずに残すのは、既に出した PR を追える必要があるため。
+      */}
+      <details className="rounded-xl border border-slate-200 bg-white p-6">
+        <summary className="cursor-pointer text-sm font-bold text-slate-500">
+          {t('このツールから直接コードを直す（使いません）')}
+        </summary>
+        <p className="mb-4 mt-3 text-xs leading-relaxed text-amber-700">
+          {t('当てると、指していた文言そのものが変わります。目印はその文言を頼りにしているので、直した瞬間に外れます。実測で 12 件中 5 件が外れました。いまはプロンプトを渡す形にしています。')}
         </p>
         <div className="mb-4">
           <Link
             href={`/admin/projects/${project.id}/fixes`}
-            className="inline-block rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+            className="inline-block rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium"
           >
             {t('修正指示を見る・まとめて実行する →')}
           </Link>
-          <p className="mt-2 text-xs leading-relaxed text-slate-500">
-            {t('依頼ごとに指示だけを先に作り、社内が読んで直してから、')}
-            {t('選んだものを')}
-            <b>{t('まとめて1回')}</b>
-            {t('投げます。')}
-            {t('ファイルの中身を1回しか送らないので費用が抑えられ、指示は差分より読みやすく直しやすい形です。')}
-          </p>
         </div>
-
-        <details>
-          <summary className="cursor-pointer text-xs text-slate-500">
-            {t('指示を経由せず、その場で当てる（従来の動き）')}
-          </summary>
-          <div className="mt-3">
-            <RunAutoText projectId={project.id} />
-          </div>
-        </details>
-      </section>
+        <RunAutoText projectId={project.id} />
+      </details>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="mb-4 text-sm font-bold">{t('案件設定')}</h2>

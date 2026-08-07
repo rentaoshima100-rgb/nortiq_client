@@ -137,7 +137,7 @@ function boot(): void {
 function start(
   api: Api,
   projectKey: string,
-  project: { name: string; clientName: string },
+  project: { name: string; clientName: string; requireScreenshot?: boolean },
 ): void {
   /* ── ホストと Shadow DOM ───────────────────────────────────── */
   const host = document.createElement('nq-revise');
@@ -215,6 +215,8 @@ function start(
   let tabReady = false;
   /** 指し直しの対象。入っている間、選んだ要素は新規依頼ではなく錨の差し替えになる */
   let repinSeq: number | null = null;
+  /** その依頼の id。ピンに出ていない依頼でも選び直せるよう、先に持っておく */
+  let repinId: string | null = null;
 
   updateHint();
 
@@ -271,6 +273,7 @@ function start(
       layer,
       projectName: project.name,
       clientName: project.clientName,
+      requireScreenshot: project.requireScreenshot === true,
       onClose: () => {
         if (feedback) {
           feedback.destroy();
@@ -282,7 +285,7 @@ function start(
         loadPins();
       },
       onGoto: (seq, pagePath) => gotoPin(seq, pagePath),
-      onRepin: (seq) => startRepin(seq),
+      onRepin: (seq, id) => startRepin(seq, id),
       /*
        * サイト上に箇所を出せなかった依頼。一覧では必ず見えるようにし、
        * 「この画面では出せない」ことだけを伝える。
@@ -428,15 +431,16 @@ function start(
      */
     if (repinSeq != null) {
       const seq = repinSeq;
-      const p = pins.find((x) => x.seq === seq);
+      const id = repinId;
       repinSeq = null;
+      repinId = null;
       reset();
-      if (!p) {
+      if (!id) {
         toast('依頼 #' + seq + ' が見つかりませんでした');
         return;
       }
       api
-        .reanchor([{ id: p.id, locator: collectLocator(target) }])
+        .reanchor([{ id, locator: collectLocator(target) }])
         .then(() => {
           toast('依頼 #' + seq + ' の箇所を覚え直しました');
           loadPins();
@@ -458,6 +462,7 @@ function start(
       projectKey,
       layer,
       target,
+      requireScreenshot: project.requireScreenshot === true,
       siteSha: readSiteSha(),
       pagePath: currentPagePath(),
       onClose: () => reset(),
@@ -776,8 +781,14 @@ function start(
    * 要素を1つ足すと後ろが全部ずれる）。そうなると照合では戻せない。
    * **もう一度指してもらうのが唯一確実な手**で、それを1タップにする。
    */
-  function startRepin(seq: number) {
+  function startRepin(seq: number, requestId?: string | null) {
     repinSeq = seq;
+    /*
+     * 依頼の id を先に決めておく。**ピンの一覧から引き直さない。**
+     * 選び直したいのは、まさにピンが出ていない依頼なので、
+     * そこに依存すると「見つかりません」で詰まる（実測 #23）。
+     */
+    repinId = requestId ?? pins.find((x) => x.seq === seq)?.id ?? null;
     enterSelect();
     hint.textContent = '依頼 #' + seq + ' の箇所をもう一度選んでください';
     toast('依頼 #' + seq + ' の箇所を選び直してください');

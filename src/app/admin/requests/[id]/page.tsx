@@ -13,6 +13,8 @@ import {
   type ProposalView,
 } from './design-ui';
 import { ClientText, TranslateButton } from '@/app/admin/translate-ui';
+import { ResolutionBox } from '@/app/admin/resolution-ui';
+import { StaffNote } from '@/app/admin/handoff-ui';
 import { AssetSwap } from './asset-ui';
 import { AskClient, AutoFixMark, FixThisRequest, StaffAttach, type AutoJob } from './staff-ui';
 
@@ -79,6 +81,8 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
     client_question: string | null;
     client_answer: string | null;
     client_answered_at: string | null;
+    resolution: string | null;
+    staff_note: string | null;
   };
 
   const [{ data: atts }, { data: events }, { data: project }] = await Promise.all([
@@ -200,6 +204,10 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
           <AutoFixMark job={autoJob} />
         </div>
       )}
+
+      <StaffNote requestId={req.id} value={tr.staff_note} />
+
+      <ResolutionBox requestId={req.id} value={tr.resolution} status={req.status} />
 
       <FixThisRequest projectId={req.project_id} requestId={req.id} />
 

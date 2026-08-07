@@ -32,6 +32,8 @@ const LIB = [
   'src/lib/fix-instructions.ts',
   'src/lib/translate.ts',
   'src/lib/asset-swap.ts',
+  'src/lib/resolution.ts',
+  'src/lib/handoff.ts',
 ];
 const files = [
   ...walk('src/app/admin'),

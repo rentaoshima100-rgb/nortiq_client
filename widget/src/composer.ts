@@ -21,6 +21,8 @@ export interface ComposerOptions {
   target: Element;
   siteSha: string | null;
   pagePath: string;
+  /** true なら画面の写真が無いと送れない（案件ごと） */
+  requireScreenshot?: boolean;
   onSubmitted: (res: { id: string; seq: number; carriedOver?: boolean }) => void;
   onClose: () => void;
 }
@@ -67,7 +69,11 @@ export function openComposer(o: ComposerOptions): Composer {
    */
   const shotTip = el('div', 'tip');
   shotTip.appendChild(
-    el('span', undefined, '画面の写真を添えていただけると確実です（スクリーンショットで結構です）'),
+    el(
+      'span',
+      undefined,
+      '修正したい箇所が写った画面の写真（スクリーンショット）を必ず添えてください。ご依頼のとおり直すと目印が外れることがあり、写真だけが確実な手がかりになります。',
+    ),
   );
   body.appendChild(shotTip);
 
@@ -126,7 +132,16 @@ export function openComposer(o: ComposerOptions): Composer {
   function refreshSendState() {
     const hasBody = ta.value.trim().length > 0;
     const kindsDone = atts.every((a) => a.kind !== null);
-    sendBtn.disabled = !hasBody || !kindsDone;
+    /*
+     * 案件で必須にしている場合だけ、写真が無いと送れない。
+     *
+     * 既定では必須にしない。文言だけの依頼に毎回写真を求めるのは摩擦が
+     * 大きく、**出してもらえなくなるほうが損**。取り違えが続く案件だけ
+     * 社内が切り替える。
+     */
+    const shotOk = atts.length > 0;
+    sendBtn.disabled = !hasBody || !kindsDone || !shotOk;
+    shotTip.className = 'tip' + (atts.length === 0 ? ' need' : '');
   }
 
   /* ── 添付（6.9）──────────────────────────────────────────── */

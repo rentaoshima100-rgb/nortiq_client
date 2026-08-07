@@ -1,7 +1,7 @@
 import type { Locator, MatchedRule, Target } from './locator';
 
 export interface InitResponse {
-  project: { name: string; clientName: string };
+  project: { name: string; clientName: string; requireScreenshot?: boolean };
   limits: { maxItemsPerRound: number; freeRounds: number };
   requestCount: number;
 }
@@ -55,6 +55,11 @@ export interface RoundsResponse {
      * 依頼を出した当時の文言とページ内のおおよその位置。
      */
     hint?: { text: string | null; percent: number | null; kind: string | null };
+    /**
+     * この依頼に対して何をしたか。完了分はサイトから目印を降ろすので、
+     * 代わりにここが記録になる。空なら未記入。
+     */
+    resolution?: string | null;
   }[];
 }
 

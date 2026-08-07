@@ -73,7 +73,7 @@ export async function GET(req: Request) {
     // 修正を当てると目印が外れることがあり、そのとき本人が場所を
     // 特定できないと、指し直しをお願いしても答えようがない。
     .select(
-      'id, seq, body, status, category, page_path, round_id, created_at, client_question, client_answer, locator, locator_live',
+      'id, seq, body, status, category, page_path, round_id, created_at, client_question, client_answer, locator, locator_live, resolution',
     )
     .eq('project_id', projectId)
     .order('seq', { ascending: false })
@@ -128,6 +128,8 @@ export async function GET(req: Request) {
         // 目印が外れたときの手がかり。**依頼を出した当時の**値を出す。
         // 「そのとき何と書いてあったか」「ページのどのあたりか」が分かれば、
         // 本人はたいてい思い出せる。
+        // 完了分はサイトからピンを降ろす代わりに、ここに記録を出す
+        resolution: r.resolution ?? null,
         hint: hintOf(r.locator as Locator | null, r.locator_live as Locator | null),
       })),
     },

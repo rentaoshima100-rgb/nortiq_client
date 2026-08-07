@@ -23,6 +23,8 @@ export interface FeedbackOptions {
   clientName: string;
   onClose(): void;
   onChanged(): void;
+  /** 画面の写真を必須にしている案件か。案内の書き方を変える */
+  requireScreenshot?: boolean;
   /**
    * 番号を押されたとき。そのピンまでスクロールして光らせる。
    * 見つからなかったときの知らせ方も向こう側（index.ts）に任せる。
@@ -30,8 +32,15 @@ export interface FeedbackOptions {
   onGoto(seq: number, pagePath: string): void;
   /** いまの画面でその箇所を出せているか。出せていなければ一覧で印を付ける */
   isPlaced(seq: number): boolean;
-  /** 箇所を指し直す。照合で戻せないときの最後の手 */
-  onRepin(seq: number): void;
+  /**
+   * 箇所を指し直す。照合で戻せないときの最後の手。
+   *
+   * **依頼の id をここで渡す。** 受け取る側でピンの一覧から引き直すと、
+   * ピンに出ていない依頼（見送りなど）で「見つかりません」になる。
+   * 実際にそれで詰まった（#23）。選び直したいのは、まさに
+   * ピンが出ていない依頼なのだから、そこに依存してはいけない。
+   */
+  onRepin(seq: number, requestId: string): void;
 }
 
 type Filter = 'all' | 'pending' | 'active' | 'done';
@@ -152,7 +161,32 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
       }
     }
 
-    if (!rejecting) bd.appendChild(filters());
+    /*
+     * 写真のお願い。**一覧の先頭に、大きめに置く。**
+     *
+     * 目印は「その要素が何と書いてあるか」を頼りにしている。ご依頼のとおり
+     * 直すと、その文言そのものが変わる。つまり**直した瞬間に外れることが
+     * ある**。そのとき効くのは、その人が見ていた画面の写真。位置も見た目も
+     * 一枚で残るので、あとから「どこの話でしたか」を聞かずに済む。
+     *
+     * 入力欄の中に小さく置いても読まれない。依頼を出す前に必ず通る
+     * この場所に、本文と同じ大きさで置く。
+     */
+    if (!rejecting) {
+      const ask = el('div', 'shot');
+      ask.appendChild(el('div', 'shot-h', '修正箇所の写真を添えてください'));
+      ask.appendChild(
+        el(
+          'div',
+          'shot-b',
+          o.requireScreenshot
+            ? 'ご依頼のとおりに直すと、目印が外れて場所が分からなくなることがあります。お手数ですが、修正したい箇所が写った画面の写真（スクリーンショット）を必ず添えてください。'
+            : 'ご依頼のとおりに直すと、目印が外れて場所が分からなくなることがあります。修正したい箇所が写った画面の写真（スクリーンショット）を添えていただけると、確実にお伝えできます。',
+        ),
+      );
+      bd.appendChild(ask);
+      bd.appendChild(filters());
+    }
 
     const list = data.requests.filter((r) => {
       if (rejecting) return r.inCurrentRound;
@@ -240,7 +274,24 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
        * とだけ言われても本人は思い出せない。何と書いてあったかが分かれば
        * たいてい思い出せる。
        */
-      if (!placed && r.pagePath === location.pathname.replace(/(.)\/$/, '$1')) {
+      /*
+       * 対応内容。
+       *
+       * 完了した依頼はサイトから目印を降ろす。直し終えた箇所に番号が
+       * 浮いていても読む側の役に立たず、**目印が外れやすいのもまさに
+       * 完了分**（直したことで本文が変わり、手がかりが同時に死ぬ）。
+       * ただし黙って消すと、依頼そのものが消えたのと同じに見える。
+       * 消える代わりに、ここで「何をしたか」が読めるようにする。
+       */
+      if (r.resolution) {
+        const done = el('div', 'res');
+        done.appendChild(el('div', 'res-h', '対応しました'));
+        done.appendChild(el('div', 'res-b', r.resolution));
+        m.appendChild(done);
+      }
+
+      // 完了分は目印を降ろしているので、選び直しは案内しない
+      if (!placed && r.status !== 'done' && r.pagePath === location.pathname.replace(/(.)\/$/, '$1')) {
         const box = el('div', 'lost');
         box.appendChild(
           el('div', 'lost-h', 'この箇所の目印が外れています'),
@@ -264,7 +315,7 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
         const fix = el('button', 'repin', 'この箇所を選び直す');
         fix.addEventListener('click', (ev) => {
           ev.stopPropagation();
-          o.onRepin(r.seq);
+          o.onRepin(r.seq, r.id);
         });
         box.appendChild(fix);
         m.appendChild(box);

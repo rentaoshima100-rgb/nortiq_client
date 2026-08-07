@@ -927,4 +927,62 @@ export const DICT: Record<string, string> = {
   '（画像差し替えも有効）':
     ' (image replacement is on too)',
   '箇所を指し直す →': 'Re-point this spot →',
+
+  // ── 対応内容（完了分はピンを降ろす代わりの記録）
+  '対応内容':
+    'What we did',
+  '保存する':
+    'Save',
+  '対応内容の下書きを作る（{n}件）':
+    'Draft what we did ({n} left)',
+  '対応内容を作り直す':
+    'Redraft what we did',
+  '記録から書いています…':
+    'Writing from the records…',
+  '例）年号の表記を西暦に変更しました。':
+    'e.g. We changed the era notation to the Western calendar.',
+  '依頼した本人がそのまま読みます。完了した依頼はサイトから目印を降ろすので、これが唯一の記録になります。':
+    'The person who filed the request reads this as written. Completed requests lose their pin on the site, so this becomes the only record.',
+  '未記入です。このままだと、相手からは依頼が消えたように見えます。':
+    'Not written yet. As it stands, the client will see the request simply vanish.',
+  '書くものはありません':
+    'Nothing to write',
+  '対応内容を作れませんでした: {why}':
+    'Could not draft it: {why}',
+  '{n}件に書きました':
+    'Wrote {n}',
+  '{n}件に書きました（{blank}件は記録が足りず空のままです）':
+    'Wrote {n} ({blank} left blank — not enough on record)',
+
+  // ── Claude Code に渡すプロンプト（当てるのをやめた代わり）
+  'Claude Code に渡すプロンプト':
+    'Prompt for Claude Code',
+  '{n}件 ／ {chars}文字':
+    '{n} requests / {chars} characters',
+  'このツールからはコードを触りません。':
+    'This tool never touches the code itself.',
+  'このツールから直接コードを直す（使いません）':
+    'Edit the code from this tool (no longer used)',
+  'まとめています…':
+    'Collecting…',
+  'プロンプトを作る':
+    'Build the prompt',
+  '例）許可番号は 27-305570。写真は添付の 2 枚目を使う。':
+    'e.g. Licence number is 27-305570. Use the second attached photo.',
+  '依頼文に無い値や、外してほしくない条件をここに書いてください。プロンプトには「依頼文より優先」と書いて載せます。':
+    'Write values the request does not contain, or constraints you do not want broken. The prompt states these take precedence over the request.',
+  '全文をコピー':
+    'Copy the whole thing',
+  '完了・見送りも含める':
+    'Include completed and skipped',
+  '当てると、指していた文言そのものが変わります。目印はその文言を頼りにしているので、直した瞬間に外れます。実測で 12 件中 5 件が外れました。いまはプロンプトを渡す形にしています。':
+    'Applying a fix changes the very wording the pin relies on, so the pin comes loose the moment it lands — measured: 5 of 12. We hand over a prompt instead.',
+  '未処理の依頼を1本のプロンプトにまとめます。クリックされた要素・当たっていた CSS・ページ内の位置・社内の補足まで入るので、これ1回で実装できます。':
+    'Collects the open requests into one prompt. It includes the clicked element, the CSS that applied, the position on the page and your internal notes — enough to implement in one pass.',
+  '社内からの補足':
+    'Internal note',
+  '渡す依頼がありません':
+    'No requests to hand over',
+  '{n}件をまとめました':
+    'Collected {n}',
 };

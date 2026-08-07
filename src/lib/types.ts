@@ -41,6 +41,8 @@ export interface ProjectRow {
   ai_enabled: boolean;
   rounds_enabled: boolean;
   asset_swap_enabled: boolean;
+  /** 依頼の送信に画面の写真を必須にするか。目印が外れたときの保険 */
+  require_screenshot: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -70,6 +72,19 @@ export interface Locator {
   docHeight: number;
   /** img / picture のグループ内判別子（6.7）。currentSrc ではなく src 属性。 */
   srcAttr?: string | null;
+
+  /* ── Tier 0（注入なし）の手がかり ──────────────────────────────
+   * ウィジェット側（widget/src/locator.ts）と同じ形。
+   * 古い依頼のロケータには入っていないので、参照側は必ず欠損を許すこと。
+   * ------------------------------------------------------------- */
+  /** 作者が書いた id */
+  elId?: string | null;
+  /** 子孫を含めたテキストのハッシュ */
+  deepTextHash?: string | null;
+  /** リンクの行き先 */
+  hrefKey?: string | null;
+  /** クラス・id を含む経路 */
+  richPath?: string | null;
 }
 
 /** 設計 6.8 の target（img / picture のときだけ入る） */

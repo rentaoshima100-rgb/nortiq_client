@@ -115,6 +115,7 @@ textarea:focus { border-color: #2563eb; background: #fff; }
   margin-top: 8px; padding: 7px 10px; background: #f1f6fd; border-radius: 6px;
   font-size: 11px; line-height: 1.6; color: #34557f;
 }
+.tip.need { background: #fff4e6; color: #8a5a12; border: 1px solid #f0d9b5; font-weight: 600; }
 .kindq { font-size: 12px; color: #64748b; margin: 10px 0 4px; }
 .opt { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; cursor: pointer; }
 .opt input { accent-color: #2563eb; width: 16px; height: 16px; }
@@ -242,6 +243,23 @@ textarea:focus { border-color: #2563eb; background: #fff; }
 /* サイト上に箇所を出せていないもの。依頼は残っていることを、
    番号を消さずに伝える。押せば「見つかりません」と出る */
 .item .no.unplaced { background: #fff; color: #64748b; border: 1px dashed #cbd5e1; }
+/* 写真のお願い。入力欄の中に小さく置いても読まれないので、
+   依頼を出す前に必ず通る一覧の先頭に、本文と同じ大きさで置く */
+.shot {
+  margin: 0 20px 4px; padding: 12px 14px; border-radius: 8px;
+  background: #eef4fd; border: 1px solid #cfe0f7;
+}
+.shot-h { font-size: 13px; font-weight: 700; color: #1d4f96; }
+.shot-b { font-size: 12.5px; line-height: 1.8; margin-top: 4px; color: #24405f; }
+
+/* 対応内容。完了分は目印を降ろす代わりにこれが記録になる */
+.item .res {
+  margin-top: 8px; border-left: 3px solid #1f9254; background: #f2faf5;
+  border-radius: 0 6px 6px 0; padding: 9px 11px;
+}
+.item .res-h { font-size: 11px; font-weight: 700; color: #16713f; }
+.item .res-b { font-size: 12px; line-height: 1.75; margin-top: 3px; white-space: pre-wrap; }
+
 /* 目印が外れたときの説明。責める見た目にしない（相手のせいではない） */
 .item .lost {
   margin-top: 8px; border-left: 3px solid #d9a441; background: #fdf8ef;
