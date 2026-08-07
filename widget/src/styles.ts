@@ -139,6 +139,9 @@ textarea:focus { border-color: #2563eb; background: #fff; }
   border: 2px solid #fff;
 }
 .pin.done { background: #94a3b8; }
+/* 要素を絞れず、記録しておいた位置に出しているもの。
+   消すより残すほうがよいが、実物に付いていないことは分かるようにする */
+.pin.loose { border-style: dashed; border-color: #bfdbfe; opacity: .82; }
 .pin.flash { animation: nqpulse 1.1s ease-out 3; }
 @keyframes nqpulse {
   0%   { box-shadow: 0 0 0 0 rgba(37,99,235,.7); }
@@ -225,12 +228,15 @@ textarea:focus { border-color: #2563eb; background: #fff; }
 .filters button.on { background: #0f172a; color: #fff; }
 
 .item { display: flex; gap: 12px; padding: 14px 20px; border-top: 1px solid #f1f5f9; }
+/* button にした（押すとその箇所へ飛ぶ）。見た目は丸のまま */
 .item .no {
   width: 24px; height: 24px; border-radius: 50%; background: #2563eb; color: #fff;
-  font-size: 11px; font-weight: 700; display: flex; align-items: center;
-  justify-content: center; flex-shrink: 0;
+  font: inherit; font-size: 11px; font-weight: 700; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; padding: 0; border: 0; cursor: pointer;
 }
+.item .no:hover { background: #1d4ed8; }
 .item .no.done { background: #94a3b8; }
+.item .no.done:hover { background: #64748b; }
 .item .m { flex: 1; min-width: 0; }
 .item .meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #94a3b8; }
 .item .st { margin-left: auto; border-radius: 999px; padding: 2px 8px; font-weight: 600; }

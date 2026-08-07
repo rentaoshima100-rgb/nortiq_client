@@ -22,7 +22,7 @@ export async function GET(req: Request) {
 
   const { data, error } = await adminDb()
     .from('requests')
-    .select('id, seq, status, category, body, locator, created_at')
+    .select('id, seq, status, category, body, locator, locator_live, created_at')
     .eq('project_id', auth.project.id)
     .eq('page_path', path)
     .neq('status', 'wont_fix')
@@ -39,10 +39,58 @@ export async function GET(req: Request) {
         status: r.status,
         category: r.category,
         body: r.body,
-        locator: r.locator,
+        // 打ち直した錨があればそちら。原本（locator）は照合には使わないが残す
+        locator: (r as { locator_live?: unknown }).locator_live ?? r.locator,
         createdAt: r.created_at,
       })),
     },
     { headers },
   );
+}
+
+/**
+ * 錨を打ち直す。
+ *
+ * ウィジェットが要素を当てられたときに、その場の手がかりを送ってくる。
+ * 次の訪問は「1回前のデプロイの DOM」と照合することになり、差が溜まらない。
+ * これをやらないと、サイトを直すたびにロケータが古びて、いつか当たらなくなる。
+ *
+ * **原本（locator）は書き換えない。** あれは「何を押したか」の記録で、
+ * 5.2 の監査対象。打ち直しは派生値なので locator_live に置く。
+ */
+export async function POST(req: Request) {
+  const headers = await corsHeadersFor(req.headers.get('origin'));
+
+  let body: { projectKey?: string; anchors?: { id?: string; locator?: unknown }[] };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return errorJson('リクエストが不正です', 400, headers);
+  }
+
+  const auth = await authenticateWidget(req, body.projectKey ?? null);
+  if (!auth.ok) return errorJson(auth.error, auth.status, headers);
+
+  // 1ページ分。多すぎるものは相手にしない
+  const anchors = (body.anchors ?? []).slice(0, 200).filter((a) => {
+    if (!a.id || typeof a.id !== 'string') return false;
+    const l = a.locator as { tag?: unknown; bbox?: unknown } | null;
+    return !!l && typeof l.tag === 'string' && !!l.bbox;
+  });
+  if (!anchors.length) return json({ updated: 0 }, { headers });
+
+  const db = adminDb();
+  const now = new Date().toISOString();
+  let updated = 0;
+  for (const a of anchors) {
+    // project_id で必ず絞る。他人の案件の依頼を書き換えられないようにする
+    const { error } = await db
+      .from('requests')
+      .update({ locator_live: a.locator, locator_live_at: now } as never)
+      .eq('id', a.id!)
+      .eq('project_id', auth.project.id);
+    if (!error) updated++;
+  }
+
+  return json({ updated }, { headers });
 }

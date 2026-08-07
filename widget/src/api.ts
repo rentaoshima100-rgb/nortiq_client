@@ -146,6 +146,17 @@ export function createApi(base: string, token: string, projectKey: string) {
       return call<{ pins: PinDTO[] }>('/api/w/pins' + q, { method: 'GET' });
     },
 
+    /**
+     * 当てられたピンの手がかりを打ち直す。
+     * これをやらないと、サイトを直すたびロケータが古びて、いつか当たらなくなる。
+     */
+    reanchor(anchors: { id: string; locator: Locator }[]): Promise<{ updated: number }> {
+      return call<{ updated: number }>('/api/w/pins', {
+        method: 'POST',
+        body: JSON.stringify({ projectKey, anchors }),
+      });
+    },
+
     getRounds(): Promise<RoundsResponse> {
       return call<RoundsResponse>(
         '/api/w/rounds?projectKey=' + encodeURIComponent(projectKey),

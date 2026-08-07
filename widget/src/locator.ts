@@ -242,6 +242,23 @@ export interface MatchResult {
   tier: MatchTier;
 }
 
+/**
+ * 「その要素は、この文書には**居ない**」と言い切れるか。
+ *
+ * findByLocator が null を返す理由は2つあり、扱いが正反対になる。
+ *
+ *   居ない   … nq-id を記録してあるのに文書内に1つも無い。SPA で別のビューを
+ *              見ている場合がこれ。ここでピンを描くと、無関係な場所に
+ *              前のページの番号が出る
+ *   分からない … 手がかりが弱くて絞れなかっただけ。要素はたぶんそこにある。
+ *              ここで描かないと、**直したとたんに番号が消える**
+ *
+ * 前者だけを黙って落とす。後者は記録した座標に描いて残す。
+ */
+export function definitelyAbsent(loc: Locator): boolean {
+  return !!loc.nqId && nqIdGroup(loc.nqId).length === 0;
+}
+
 export function findByLocator(loc: Locator): MatchResult | null {
   // 段1: nqId
   if (loc.nqId) {

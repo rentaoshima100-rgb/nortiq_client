@@ -23,6 +23,11 @@ export interface FeedbackOptions {
   clientName: string;
   onClose(): void;
   onChanged(): void;
+  /**
+   * 番号を押されたとき。そのピンまでスクロールして光らせる。
+   * 見つからなかったときの知らせ方も向こう側（index.ts）に任せる。
+   */
+  onGoto(seq: number, pagePath: string): void;
 }
 
 type Filter = 'all' | 'pending' | 'active' | 'done';
@@ -182,7 +187,21 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
         row.appendChild(ck);
       }
 
-      const no = el('div', 'no' + (r.status === 'done' ? ' done' : ''), String(r.seq));
+      /*
+       * 番号を押すと、その箇所まで飛んで光る。
+       *
+       * 一覧を見ている人は「どこの話だったか」を確かめたい。文言だけでは
+       * 思い出せないことが多く、いちいち探させると使われなくなる。
+       *
+       * 別のページの依頼は飛べない。**黙って何も起きないのが一番困る**ので、
+       * どのページの話かを出す。
+       */
+      const no = el('button', 'no' + (r.status === 'done' ? ' done' : ''), String(r.seq));
+      no.title = 'この箇所へ移動';
+      no.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        o.onGoto(r.seq, r.pagePath);
+      });
       row.appendChild(no);
 
       const m = el('div', 'm');

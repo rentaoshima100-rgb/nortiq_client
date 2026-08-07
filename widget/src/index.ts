@@ -10,7 +10,7 @@
 import { createApi, type Api, type PinDTO } from './api';
 import { openComposer, type Composer } from './composer';
 import { openFeedback } from './feedback';
-import { findByLocator } from './locator';
+import { collectLocator, definitelyAbsent, findByLocator } from './locator';
 import { CSS_TEXT, PAGE_CSS } from './styles';
 import { docRect, el, fmtDate, isSelectable, jaLabel, shortLabel } from './util';
 
@@ -263,6 +263,7 @@ function start(
         loadSummary();
         loadPins();
       },
+      onGoto: (seq, pagePath) => gotoPin(seq, pagePath),
     });
   }
 
@@ -530,44 +531,154 @@ function start(
     );
   }
 
+  /**
+   * 当てられなかったときに使う、記録しておいた位置。
+   *
+   * ページ全体の高さが変わっていれば、その比で寄せる。上に何かが挿さると
+   * 下は全部ずれるので、そのままの y を使うより近くなる。
+   * **当たっているときは使わない。** 実物の位置がいつでも優先。
+   */
+  function recordedRect(loc: PinDTO['locator']) {
+    const now = Math.max(1, document.documentElement.scrollHeight);
+    const then = Math.max(1, loc.docHeight || now);
+    const k = Math.abs(now - then) / then > 0.5 ? 1 : now / then; // 別物なら寄せない
+    return { x: loc.bbox.x, y: Math.round(loc.bbox.y * k), w: loc.bbox.w, h: loc.bbox.h };
+  }
+
+  /**
+   * 当てられたピンの手がかりを打ち直して送る。
+   *
+   * 依頼を出した日のロケータは、その日の DOM を指している。サイトを直すたび
+   * 本文もクラスも経路もずれ、いつか当たらなくなる。当たらなくなった時点で
+   * 番号が消えるので、**当たっているうちに打ち直しておく。**
+   * 次の訪問は「1回前のデプロイの DOM」と照合することになり、差が溜まらない。
+   *
+   * confirmed のときだけ。provisional は当て違いの可能性があり、そこで
+   * 上書きすると誤った錨が固定される。弱い手がかりで塗り替えない。
+   */
+  /**
+   * 錨が変わったかを見るための鍵。
+   * 座標は入れない。スクロールや画像の読み込みで毎回動くので、
+   * それで送っていると開くたびに書き込むことになる。
+   */
+  function anchorKey(l: PinDTO['locator']): string {
+    return [
+      l.nqId,
+      l.nqOrdinal,
+      l.elId,
+      l.textHash,
+      l.deepTextHash,
+      l.srcAttr,
+      l.hrefKey,
+      l.richPath,
+      l.cssPath,
+    ].join('|');
+  }
+
+  let anchorTimer: ReturnType<typeof setTimeout> | null = null;
+  function reanchor(list: { id: string; locator: ReturnType<typeof collectLocator> }[]) {
+    if (!list.length) return;
+    // 描き直しのたびに投げない。落ち着いてから1回だけ
+    if (anchorTimer) clearTimeout(anchorTimer);
+    anchorTimer = setTimeout(() => {
+      api.reanchor(list).catch(() => {
+        /* 打ち直せなくても表示は変わらない */
+      });
+    }, 2000);
+  }
+
   function drawPins() {
     pinsLayer.innerHTML = '';
     openCard = null;
     const drawn = new Map<number, { node: HTMLElement; rect: ReturnType<typeof docRect> }>();
+    const fresh: { id: string; locator: ReturnType<typeof collectLocator> }[] = [];
 
     for (const p of pins) {
       const hit = findByLocator(p.locator);
-      if (!hit) continue; // 段4（stale）はサイト上には描かない（6.7）
-      const r = docRect(hit.el);
-      const node = el('button', 'pin' + (p.status === 'done' ? ' done' : ''), String(p.seq));
+
+      /*
+       * **番号を消さない。**
+       *
+       * 手がかりが弱くて絞れなかっただけなら、要素はたぶんそこにある。
+       * ここで描かないと「指摘した文言を直したら番号が消えた」になり、
+       * クライアントから見れば依頼そのものが無くなったのと同じに見える。
+       *
+       * ただし nq-id を記録してあるのに文書内に1つも無い場合は別。
+       * それは要素が本当に居ない（SPA で別のビューを見ている）ので、
+       * 描くと無関係な場所に前のページの番号が出る。そこだけ落とす。
+       */
+      if (!hit && definitelyAbsent(p.locator)) continue;
+
+      const r = hit ? docRect(hit.el) : recordedRect(p.locator);
+      const node = el(
+        'button',
+        'pin' + (p.status === 'done' ? ' done' : '') + (hit ? '' : ' loose'),
+        String(p.seq),
+      );
       node.style.left = Math.max(0, r.x + r.w - 13) + 'px';
       node.style.top = Math.max(0, r.y - 13) + 'px';
-      node.title = p.body;
+      node.title = hit ? p.body : p.body + '\n（元の位置に表示しています）';
       node.addEventListener('click', (ev) => {
         ev.stopPropagation();
         showCard(p, r);
       });
       pinsLayer.appendChild(node);
       drawn.set(p.seq, { node, rect: r });
+
+      // 当てられているうちに錨を打ち直す。弱い手がかりでは塗り替えない
+      if (hit && hit.tier === 'confirmed') {
+        const next = collectLocator(hit.el);
+        // 変わっていないなら送らない。開くたびに書き込むことになる
+        if (anchorKey(next) !== anchorKey(p.locator)) fresh.push({ id: p.id, locator: next });
+      }
     }
+
+    lastDrawn = drawn;
+    reanchor(fresh);
 
     // 社内からの「サイトで見る」で来たとき、その箇所まで飛んで光らせる
     if (pendingPin != null) {
-      const target = drawn.get(pendingPin);
-      const p = pins.find((x) => x.seq === pendingPin);
-      if (target && p) {
-        const seq = pendingPin;
+      const seq = pendingPin;
+      if (drawn.has(seq)) {
         pendingPin = null;
-        window.scrollTo({
-          top: Math.max(0, target.rect.y - window.innerHeight / 3),
-          behavior: 'smooth',
-        });
-        target.node.classList.add('flash');
-        setTimeout(() => target.node.classList.remove('flash'), 3600);
-        setTimeout(() => showCard(p, target.rect), 500);
-        toast('依頼 #' + seq + ' の箇所です');
+        gotoPin(seq, null);
       }
     }
+  }
+
+  /** 直前に描いたピン。一覧から番号を押されたときに使う */
+  let lastDrawn = new Map<number, { node: HTMLElement; rect: ReturnType<typeof docRect> }>();
+
+  /**
+   * その番号の箇所まで飛んで光らせる。
+   *
+   * 一覧を見ている人は「どこの話だったか」を確かめたい。文言だけでは
+   * 思い出せないことが多く、探させると使われなくなる。
+   * **見つからないときに黙って何も起きないのが一番困る**ので、必ず何か言う。
+   */
+  function gotoPin(seq: number, pagePath: string | null) {
+    const target = lastDrawn.get(seq);
+    const p = pins.find((x) => x.seq === seq);
+    if (!target || !p) {
+      toast(
+        pagePath && pagePath !== currentPagePath()
+          ? '依頼 #' + seq + ' は ' + pagePath + ' の依頼です'
+          : '依頼 #' + seq + ' の箇所は、今のページでは見つかりませんでした',
+      );
+      return;
+    }
+    if (feedback) {
+      feedback.destroy();
+      feedback = null;
+    }
+    window.scrollTo({
+      top: Math.max(0, target.rect.y - window.innerHeight / 3),
+      behavior: 'smooth',
+    });
+    target.node.classList.add('flash');
+    setTimeout(() => target.node.classList.remove('flash'), 3600);
+    setTimeout(() => showCard(p, target.rect), 500);
+    toast('依頼 #' + seq + ' の箇所です');
   }
 
   function showCard(p: PinDTO, r: { x: number; y: number; w: number; h: number }) {
