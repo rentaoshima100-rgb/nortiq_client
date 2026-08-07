@@ -255,11 +255,54 @@ export interface MatchResult {
  *
  * 前者だけを黙って落とす。後者は記録した座標に描いて残す。
  */
-export function definitelyAbsent(loc: Locator): boolean {
-  return !!loc.nqId && nqIdGroup(loc.nqId).length === 0;
+/**
+ * 「その要素が何であるか」を名乗っている手がかりを持っているか。
+ *
+ *   中身の手がかり  nqId / elId / srcAttr / hrefKey / textHash / deepTextHash
+ *                  → その要素**自身**の性質。別の要素には当たらない
+ *   構造の手がかり  richPath / cssPath / bbox
+ *                  → 「上から N 番目の div」。中身が入れ替われば別物を掴む
+ *
+ * 中身の手がかりを持っているのに1つも当たらないなら、**その要素は
+ * この画面に居ない。** SPA で別のビューを見ているときがこれで、
+ * ここで構造の手がかりに降りると、無関係な要素にピンが付く。
+ */
+export function hasContentCue(loc: Locator): boolean {
+  return !!(loc.nqId || loc.elId || loc.srcAttr || loc.hrefKey || loc.textHash || loc.deepTextHash);
 }
 
-export function findByLocator(loc: Locator): MatchResult | null {
+/**
+ * 同じ本文を持つ要素が、文書全体で**ちょうど1つ**なら返す。タグは問わない。
+ *
+ * 直しの過程でタグが変わることがある（div を p にする、span を b で包む）。
+ * タグが違うだけで見失うのはもったいない。一意であることは崩さない。
+ */
+function uniqueAnyTag(pred: (e: Element) => boolean): Element | null {
+  const all = document.getElementsByTagName('*');
+  let hit: Element | null = null;
+  for (let i = 0; i < all.length; i++) {
+    if (!pred(all[i])) continue;
+    if (hit) return null;
+    hit = all[i];
+  }
+  return hit;
+}
+
+export interface FindOptions {
+  /**
+   * 構造の手がかり（richPath / cssPath / bbox）まで降りてよいか。
+   *
+   * 既定は false。中身の手がかりが1つも当たらないなら、その要素は
+   * この画面に居ないと考える（SPA で別のビューを見ている）。
+   *
+   * ただし**同じページの他のピンが中身の手がかりで当たっている**なら、
+   * 見ている画面は合っている。そのときだけ true にしてよい。
+   * 呼び出し側（drawPins）が2周目で立てる。
+   */
+  allowStructural?: boolean;
+}
+
+export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | null {
   // 段1: nqId
   if (loc.nqId) {
     const group = nqIdGroup(loc.nqId);
@@ -291,13 +334,6 @@ export function findByLocator(loc: Locator): MatchResult | null {
     }
   }
 
-  // ロケータに nqId があったのに、その id が文書内に1つも無い場合。
-  // 要素そのものが消えている（別のページ／別のビューを見ている）可能性が高い。
-  // ここで cssPath や bbox に落ちると、**別のページの無関係な要素を掴む**。
-  // SPA で URL が変わらないサイトでは、これが「ページを移動してもピンが出る」
-  // という形で表に出る。強い手がかりから弱い手がかりへは降りない。
-  const nqIdMissing = !!loc.nqId && nqIdGroup(loc.nqId).length === 0;
-
   // 段2: 作者が書いた判別子。
   // src / href は「その要素が何を指すか」の宣言であって、座標や序数のような
   // 当てずっぽうではない。注入なしのサイトでは画像とリンクがここで拾える。
@@ -326,8 +362,36 @@ export function findByLocator(loc: Locator): MatchResult | null {
     if (hit) return { el: hit, tier: 'provisional' };
   }
 
-  // nqId があったのに見つからないなら、段3（richPath / cssPath / bbox）には降りない
-  if (nqIdMissing) return null;
+  /*
+   * 段2: タグを問わない本文一致。
+   *
+   * 直しの過程でタグが変わることがある（div → p、span を b で包む）。
+   * タグが違うだけで見失うのはもったいない。文書全体で1つに決まる
+   * ときだけ採るので、当て違いは起きない。
+   */
+  if (loc.textHash) {
+    const hit = uniqueAnyTag((e) => textHashOf(ownText(e)) === loc.textHash);
+    if (hit) return { el: hit, tier: 'provisional' };
+  }
+  if (loc.deepTextHash) {
+    const hit = uniqueAnyTag((e) => textHashOf(deepText(e)) === loc.deepTextHash);
+    if (hit) return { el: hit, tier: 'provisional' };
+  }
+
+  /*
+   * ここから下は**構造の手がかり**（richPath / cssPath / bbox）。
+   * 「上から N 番目の div」なので、中身が入れ替われば別物を掴む。
+   *
+   * 中身の手がかりを1つでも持っていたのに、上まででどれも当たらなかった
+   * なら、**その要素はこの画面に居ない。** 降りてはいけない。
+   *
+   * これを nqId の有無だけで見ていたのが、実測で2つの不具合になった。
+   *   - nq-id が振り直されただけの要素まで捨てていた（本文は残っていたのに）
+   *   - nq-id を持たないサイト（ブラウザ内で描画する型）では防御が
+   *     一切効かず、SPA でビューを切り替えると別の画面にピンが出ていた
+   * 見るべきは「nq-id があるか」ではなく「中身の手がかりがあるか」だった。
+   */
+  if (hasContentCue(loc) && !opts?.allowStructural) return null;
 
   // 段3: richPath。cssPath と同じ構造の手がかりだが、クラスと id を含む分だけ強い。
   // 同じ文言が並ぶ「→」のような span は、本文では区別がつかずここで拾う。

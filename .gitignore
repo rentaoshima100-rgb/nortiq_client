@@ -23,3 +23,4 @@ Thumbs.db
 
 # GitHub App の秘密鍵など
 .secrets/
+public/nq-replay.js

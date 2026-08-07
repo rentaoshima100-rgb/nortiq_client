@@ -28,6 +28,10 @@ export interface FeedbackOptions {
    * 見つからなかったときの知らせ方も向こう側（index.ts）に任せる。
    */
   onGoto(seq: number, pagePath: string): void;
+  /** いまの画面でその箇所を出せているか。出せていなければ一覧で印を付ける */
+  isPlaced(seq: number): boolean;
+  /** 箇所を指し直す。照合で戻せないときの最後の手 */
+  onRepin(seq: number): void;
 }
 
 type Filter = 'all' | 'pending' | 'active' | 'done';
@@ -196,8 +200,13 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
        * 別のページの依頼は飛べない。**黙って何も起きないのが一番困る**ので、
        * どのページの話かを出す。
        */
-      const no = el('button', 'no' + (r.status === 'done' ? ' done' : ''), String(r.seq));
-      no.title = 'この箇所へ移動';
+      const placed = o.isPlaced(r.seq);
+      const no = el(
+        'button',
+        'no' + (r.status === 'done' ? ' done' : '') + (placed ? '' : ' unplaced'),
+        String(r.seq),
+      );
+      no.title = placed ? 'この箇所へ移動' : 'この画面では箇所を出せていません';
       no.addEventListener('click', (ev) => {
         ev.stopPropagation();
         o.onGoto(r.seq, r.pagePath);
@@ -218,6 +227,22 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
       meta.appendChild(st);
       m.appendChild(meta);
       m.appendChild(el('div', 'bd2', r.body));
+
+      /*
+       * 箇所を出せていないものには、指し直しの入口を置く。
+       *
+       * こちらが文言を直すと、本文の手がかりも nq-id も同時に変わることが
+       * あり、照合では戻せない。「見つかりません」で終わらせず、
+       * その場で1タップ指し直せるようにする。
+       */
+      if (!placed && r.pagePath === location.pathname.replace(/(.)\/$/, '$1')) {
+        const fix = el('button', 'repin', 'この箇所を指し直す');
+        fix.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          o.onRepin(r.seq);
+        });
+        m.appendChild(fix);
+      }
 
       /*
        * 確認したいこと。

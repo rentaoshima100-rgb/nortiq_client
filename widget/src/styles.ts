@@ -139,9 +139,6 @@ textarea:focus { border-color: #2563eb; background: #fff; }
   border: 2px solid #fff;
 }
 .pin.done { background: #94a3b8; }
-/* 要素を絞れず、記録しておいた位置に出しているもの。
-   消すより残すほうがよいが、実物に付いていないことは分かるようにする */
-.pin.loose { border-style: dashed; border-color: #bfdbfe; opacity: .82; }
 .pin.flash { animation: nqpulse 1.1s ease-out 3; }
 @keyframes nqpulse {
   0%   { box-shadow: 0 0 0 0 rgba(37,99,235,.7); }
@@ -237,6 +234,14 @@ textarea:focus { border-color: #2563eb; background: #fff; }
 .item .no:hover { background: #1d4ed8; }
 .item .no.done { background: #94a3b8; }
 .item .no.done:hover { background: #64748b; }
+/* サイト上に箇所を出せていないもの。依頼は残っていることを、
+   番号を消さずに伝える。押せば「見つかりません」と出る */
+.item .no.unplaced { background: #fff; color: #64748b; border: 1px dashed #cbd5e1; }
+/* 照合で戻せないときの最後の手。目立たせすぎない */
+.item .repin {
+  margin-top: 6px; padding: 0; font: inherit; font-size: 11px; color: #16487f;
+  background: none; border: 0; text-decoration: underline; text-underline-offset: 2px;
+}
 .item .m { flex: 1; min-width: 0; }
 .item .meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #94a3b8; }
 .item .st { margin-left: auto; border-radius: 999px; padding: 2px 8px; font-weight: 600; }

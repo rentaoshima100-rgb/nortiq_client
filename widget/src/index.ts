@@ -10,7 +10,7 @@
 import { createApi, type Api, type PinDTO } from './api';
 import { openComposer, type Composer } from './composer';
 import { openFeedback } from './feedback';
-import { collectLocator, definitelyAbsent, findByLocator } from './locator';
+import { collectLocator, findByLocator } from './locator';
 import { CSS_TEXT, PAGE_CSS } from './styles';
 import { docRect, el, fmtDate, isSelectable, jaLabel, shortLabel } from './util';
 
@@ -197,6 +197,8 @@ function start(
   let pendingPin: number | null = readPinTarget();
   let feedback: { destroy(): void } | null = null;
   let tabReady = false;
+  /** 指し直しの対象。入っている間、選んだ要素は新規依頼ではなく錨の差し替えになる */
+  let repinSeq: number | null = null;
 
   updateHint();
 
@@ -264,6 +266,13 @@ function start(
         loadPins();
       },
       onGoto: (seq, pagePath) => gotoPin(seq, pagePath),
+      onRepin: (seq) => startRepin(seq),
+      /*
+       * サイト上に箇所を出せなかった依頼。一覧では必ず見えるようにし、
+       * 「この画面では出せない」ことだけを伝える。
+       * 番号を消さないのはここで守る。サイト上に当てずっぽうで置かない。
+       */
+      isPlaced: (seq) => lastDrawn.has(seq) || !lastMissing.includes(seq),
     });
   }
 
@@ -393,6 +402,33 @@ function start(
   });
 
   function commit(target: Element) {
+    /*
+     * 指し直しの最中なら、新しい依頼は作らず**錨だけ差し替える**。
+     *
+     * 指摘された文言をこちらが直すと、本文の手がかりも nq-id も同時に
+     * 変わることがある（nq-id は「同じ親の中で同じタグの何番目か」から
+     * 作っているので、要素を1つ足すと後ろが全部ずれる）。そうなると
+     * 照合では戻せない。**もう一度指してもらうのが唯一確実な手**。
+     */
+    if (repinSeq != null) {
+      const seq = repinSeq;
+      const p = pins.find((x) => x.seq === seq);
+      repinSeq = null;
+      reset();
+      if (!p) {
+        toast('依頼 #' + seq + ' が見つかりませんでした');
+        return;
+      }
+      api
+        .reanchor([{ id: p.id, locator: collectLocator(target) }])
+        .then(() => {
+          toast('依頼 #' + seq + ' の箇所を覚え直しました');
+          loadPins();
+        })
+        .catch(() => toast('覚え直せませんでした。通信をご確認ください'));
+      return;
+    }
+
     mode = 'composing';
     bar.style.display = 'none';
     document.documentElement.classList.remove('nq-selecting');
@@ -532,20 +568,6 @@ function start(
   }
 
   /**
-   * 当てられなかったときに使う、記録しておいた位置。
-   *
-   * ページ全体の高さが変わっていれば、その比で寄せる。上に何かが挿さると
-   * 下は全部ずれるので、そのままの y を使うより近くなる。
-   * **当たっているときは使わない。** 実物の位置がいつでも優先。
-   */
-  function recordedRect(loc: PinDTO['locator']) {
-    const now = Math.max(1, document.documentElement.scrollHeight);
-    const then = Math.max(1, loc.docHeight || now);
-    const k = Math.abs(now - then) / then > 0.5 ? 1 : now / then; // 別物なら寄せない
-    return { x: loc.bbox.x, y: Math.round(loc.bbox.y * k), w: loc.bbox.w, h: loc.bbox.h };
-  }
-
-  /**
    * 当てられたピンの手がかりを打ち直して送る。
    *
    * 依頼を出した日のロケータは、その日の DOM を指している。サイトを直すたび
@@ -592,32 +614,59 @@ function start(
     openCard = null;
     const drawn = new Map<number, { node: HTMLElement; rect: ReturnType<typeof docRect> }>();
     const fresh: { id: string; locator: ReturnType<typeof collectLocator> }[] = [];
+    /** 今の画面では箇所を出せなかった依頼。一覧側で印を付ける */
+    const missing: number[] = [];
 
+    /*
+     * 2周する。
+     *
+     * 1周目は**中身の手がかりだけ**（nq-id / id / src / href / 本文）。
+     * これは「その要素自身が名乗っているもの」なので、別の要素には当たらない。
+     *
+     * 1周目で1つでも当たったなら、**見ている画面は合っている。**
+     * そのときだけ2周目で構造の手がかり（richPath / cssPath）に降りる。
+     * 直した結果、本文も nq-id も同時に変わった要素はここで拾える。
+     *
+     * 1周目が全滅なら、SPA で別のビューを見ている可能性が高い。降りない。
+     * 降りると、その画面に居ない依頼の番号が無関係な場所に並ぶ。
+     */
+    const matched = new Map<string, ReturnType<typeof findByLocator>>();
+    let anyContentHit = false;
     for (const p of pins) {
       const hit = findByLocator(p.locator);
+      matched.set(p.id, hit);
+      if (hit) anyContentHit = true;
+    }
+    if (anyContentHit) {
+      for (const p of pins) {
+        if (matched.get(p.id)) continue;
+        matched.set(p.id, findByLocator(p.locator, { allowStructural: true }));
+      }
+    }
+
+    for (const p of pins) {
+      const hit = matched.get(p.id) ?? null;
 
       /*
-       * **番号を消さない。**
+       * 当てられなかったものは**サイト上には描かない。**
        *
-       * 手がかりが弱くて絞れなかっただけなら、要素はたぶんそこにある。
-       * ここで描かないと「指摘した文言を直したら番号が消えた」になり、
-       * クライアントから見れば依頼そのものが無くなったのと同じに見える。
+       * 記録した座標に出す作りを一度入れたが、実測で害のほうが大きかった。
+       * SPA でビューを切り替えると、その画面に居ない依頼の番号が
+       * 無関係な場所に並ぶ。番号が消えるより、**別の場所に出るほうが困る**。
        *
-       * ただし nq-id を記録してあるのに文書内に1つも無い場合は別。
-       * それは要素が本当に居ない（SPA で別のビューを見ている）ので、
-       * 描くと無関係な場所に前のページの番号が出る。そこだけ落とす。
+       * 番号そのものは依頼一覧に必ず残る（missing に入れて印を付ける）ので、
+       * クライアントから依頼が消えて見えることはない。
        */
-      if (!hit && definitelyAbsent(p.locator)) continue;
+      if (!hit) {
+        missing.push(p.seq);
+        continue;
+      }
 
-      const r = hit ? docRect(hit.el) : recordedRect(p.locator);
-      const node = el(
-        'button',
-        'pin' + (p.status === 'done' ? ' done' : '') + (hit ? '' : ' loose'),
-        String(p.seq),
-      );
+      const r = docRect(hit.el);
+      const node = el('button', 'pin' + (p.status === 'done' ? ' done' : ''), String(p.seq));
       node.style.left = Math.max(0, r.x + r.w - 13) + 'px';
       node.style.top = Math.max(0, r.y - 13) + 'px';
-      node.title = hit ? p.body : p.body + '\n（元の位置に表示しています）';
+      node.title = p.body;
       node.addEventListener('click', (ev) => {
         ev.stopPropagation();
         showCard(p, r);
@@ -634,6 +683,7 @@ function start(
     }
 
     lastDrawn = drawn;
+    lastMissing = missing;
     reanchor(fresh);
 
     // 社内からの「サイトで見る」で来たとき、その箇所まで飛んで光らせる
@@ -648,6 +698,23 @@ function start(
 
   /** 直前に描いたピン。一覧から番号を押されたときに使う */
   let lastDrawn = new Map<number, { node: HTMLElement; rect: ReturnType<typeof docRect> }>();
+  /** 直前の描画で箇所を出せなかった依頼 */
+  let lastMissing: number[] = [];
+
+  /**
+   * 箇所を指し直してもらう。
+   *
+   * こちらが文言を直すと、本文の手がかりも nq-id も同時に変わることがある
+   * （nq-id は「同じ親の中で同じタグの何番目か」から作っているので、
+   * 要素を1つ足すと後ろが全部ずれる）。そうなると照合では戻せない。
+   * **もう一度指してもらうのが唯一確実な手**で、それを1タップにする。
+   */
+  function startRepin(seq: number) {
+    repinSeq = seq;
+    enterSelect();
+    hint.textContent = '依頼 #' + seq + ' の箇所をもう一度選んでください';
+    toast('依頼 #' + seq + ' の箇所を選び直してください');
+  }
 
   /**
    * その番号の箇所まで飛んで光らせる。
@@ -660,11 +727,12 @@ function start(
     const target = lastDrawn.get(seq);
     const p = pins.find((x) => x.seq === seq);
     if (!target || !p) {
-      toast(
-        pagePath && pagePath !== currentPagePath()
-          ? '依頼 #' + seq + ' は ' + pagePath + ' の依頼です'
-          : '依頼 #' + seq + ' の箇所は、今のページでは見つかりませんでした',
-      );
+      // 見つからないと言うだけで終わらせない。その場で指し直せるようにする
+      if (pagePath && pagePath !== currentPagePath()) {
+        toast('依頼 #' + seq + ' は ' + pagePath + ' の依頼です');
+      } else {
+        startRepin(seq);
+      }
       return;
     }
     if (feedback) {

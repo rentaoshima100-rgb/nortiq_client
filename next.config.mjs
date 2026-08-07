@@ -13,6 +13,17 @@ const nextConfig = {
           { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
         ],
       },
+      {
+        // 切り分け用の照合器。w.js と同じ locator.ts を束ねたもの。
+        // 対象サイトのページから import して、実際の DOM に当てて確かめる。
+        // 秘密は含まない。読み込まれるのは社内が明示的に呼んだときだけ。
+        source: '/nq-replay.js',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Cache-Control', value: 'no-store' },
+          { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
+        ],
+      },
     ];
   },
 };

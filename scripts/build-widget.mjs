@@ -2,6 +2,7 @@
 import { build, context } from 'esbuild';
 import { gzipSync } from 'node:zlib';
 import { createHash, randomBytes } from 'node:crypto';
+import fs from 'node:fs';
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -112,7 +113,19 @@ async function buildReplayBundle() {
     minify: false,
     logLevel: 'silent',
   });
-  console.log('  worker/vendor/locator-bundle.js を更新しました');
+  /*
+   * 同じものを public/ にも置く。
+   *
+   * 「ピンが出ない」の切り分けは、**本番のページに実際の照合器を当てる**
+   * 以外に手が無い。対象サイトはブラウザ内で JSX を描くものが多く、
+   * 配信 HTML を見ても中身が入っていないため、jsdom でも足りない。
+   * 秘密は含まない（w.js に入っているものと同じ実装）。
+   *
+   *   await import('https://…/nq-replay.js')
+   *   window.__nqReplay.findByLocator(locator)
+   */
+  fs.copyFileSync(out, join(root, 'public/nq-replay.js'));
+  console.log('  worker/vendor/locator-bundle.js と public/nq-replay.js を更新しました');
 }
 
 async function run() {
