@@ -696,6 +696,22 @@ function start(
         continue;
       }
 
+      /*
+       * 画面の外に逃がして隠す作りもある。閉じたモーダル・引き出し・
+       * ハンバーガーの中身は、display ではなく **left を大きく取って**
+       * 隠すことが多い。実測でモーダルの見出しが left:1945px にあり、
+       * display も visibility も opacity も生きていた（座標は 0 にならない）。
+       *
+       * そのまま描くと、ページの右外にピンが出て横スクロールが生まれる。
+       * 幅の基準に body を使う。documentElement の scrollWidth は
+       * **逃がした要素自身とこのピン自身**で膨らむので基準にならない。
+       */
+      const docW = Math.max(document.body ? document.body.scrollWidth : 0, window.innerWidth);
+      if (r.x >= docW) {
+        missing.push(p.seq);
+        continue;
+      }
+
       const node = el('button', 'pin' + (p.status === 'done' ? ' done' : ''), String(p.seq));
       node.style.left = Math.max(0, r.x + r.w - 13) + 'px';
       node.style.top = Math.max(0, r.y - 13) + 'px';
