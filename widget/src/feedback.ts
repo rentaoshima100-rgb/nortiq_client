@@ -220,75 +220,26 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
         /*
          * 写真を求める確認が多い（「どの写真をお使いですか」）。
          * 文字で答えさせても話が進まないので、その場で付けられるようにする。
-         * 素材か参考かは**必ず選ばせる**（6.9）。あとで揉めたときに、
-         * 誰が「これは素材だ」と言ったかが要る。
          */
-        let file: File | null = null;
-        let kind: 'material' | 'reference' | null = null;
-
-        const fileRow = el('div', 'ask-file');
-        const pick = el('label', 'ask-pick', '画像を添付');
-        const input = el('input') as HTMLInputElement;
-        input.type = 'file';
-        input.accept = 'image/png,image/jpeg,image/webp,image/gif,image/avif';
-        input.style.display = 'none';
-        const fname = el('span', 'ask-fn', '');
-        const kindBox = el('div', 'ask-kind');
-
-        input.addEventListener('change', () => {
-          file = input.files && input.files[0] ? input.files[0] : null;
-          fname.textContent = file ? file.name : '';
-          kindBox.innerHTML = '';
-          if (!file) return;
-          kindBox.appendChild(el('span', 'ask-kq', 'この画像は？'));
-          const mk = (v: 'material' | 'reference', label: string) => {
-            const b = el('button', 'ask-kb', label);
-            b.addEventListener('click', () => {
-              kind = v;
-              for (const n of Array.prototype.slice.call(kindBox.querySelectorAll('.ask-kb'))) {
-                (n as HTMLElement).classList.remove('on');
-              }
-              b.classList.add('on');
-            });
-            return b;
-          };
-          kindBox.appendChild(mk('material', 'サイトに使ってください'));
-          kindBox.appendChild(mk('reference', 'イメージの参考です'));
-        });
-        pick.appendChild(input);
-        pick.addEventListener('click', () => input.click());
-        fileRow.appendChild(pick);
-        fileRow.appendChild(fname);
-        q.appendChild(fileRow);
-        q.appendChild(kindBox);
+        const at = attachRow();
+        q.appendChild(at.el);
 
         const send = el('button', 'ask-s', '送る') as HTMLButtonElement;
         const note = el('span', 'ask-n', '');
         send.onclick = async () => {
           const v = ta.value.trim();
-          if (!v && !file) {
+          if (!v && !at.file) {
             note.textContent = '内容をお書きいただくか、画像を添えてください';
             return;
           }
-          if (file && !kind) {
+          if (at.file && !at.kind) {
             note.textContent = 'この画像が素材か参考かをお選びください';
             return;
           }
           send.disabled = true;
           note.textContent = '送っています…';
           try {
-            if (file && kind) {
-              const signed = await o.api.signAttachment({
-                requestId: r.id,
-                filename: file.name,
-                mime: file.type,
-                bytes: file.size,
-                width: null,
-                height: null,
-                kind,
-              });
-              await putToSignedUrl(signed.uploadUrl, file);
-            }
+            await at.upload(r.id);
             await o.api.answerQuestion(r.id, v || '（画像を添付しました）');
             note.textContent = 'ありがとうございます';
             data = await o.api.getRounds();
@@ -303,6 +254,53 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
         foot.appendChild(note);
         q.appendChild(foot);
         m.appendChild(q);
+      } else if (!rejecting && r.status !== 'done') {
+        /*
+         * 確認が出ていない依頼にも、後から写真を足せるようにする。
+         *
+         * 「社長写真お送り済み」のように、依頼を出したあとで素材が
+         * 揃うことがある。別の依頼として出し直させると、社内の一覧で
+         * どの依頼の素材か分からなくなる。
+         *
+         * 開いたままにはしない。一覧に毎行フォームが並ぶと、依頼そのものが
+         * 読めなくなる。押したときだけ出す。
+         */
+        const more = el('div', 'more');
+        const open = el('button', 'more-b', '写真を添える');
+        more.appendChild(open);
+        open.addEventListener('click', () => {
+          more.innerHTML = '';
+          const at = attachRow();
+          const send = el('button', 'ask-s', '送る') as HTMLButtonElement;
+          const note = el('span', 'ask-n', '');
+          send.onclick = async () => {
+            if (!at.file) {
+              note.textContent = '画像をお選びください';
+              return;
+            }
+            if (!at.kind) {
+              note.textContent = 'この画像が素材か参考かをお選びください';
+              return;
+            }
+            send.disabled = true;
+            note.textContent = '送っています…';
+            try {
+              await at.upload(r.id);
+              note.textContent = 'お預かりしました';
+              data = await o.api.getRounds();
+              render();
+            } catch (e) {
+              send.disabled = false;
+              note.textContent = e instanceof Error ? e.message : '送れませんでした';
+            }
+          };
+          const foot2 = el('div', 'ask-f');
+          foot2.appendChild(send);
+          foot2.appendChild(note);
+          more.appendChild(at.el);
+          more.appendChild(foot2);
+        });
+        m.appendChild(more);
       }
 
       row.appendChild(m);
@@ -311,6 +309,84 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
     }
 
     if (rejecting) renderRejectFooter();
+  }
+
+  /**
+   * 写真を1枚足すための一式。
+   *
+   * 素材か参考かは**必ず選ばせる**（6.9）。あとで揉めたときに、誰が
+   * 「これは素材だ」と言ったかが要る。選ぶまで送らせない。
+   *
+   * ファイル入力は label の**外**に置く。中に入れると、label のクリックが
+   * 中の input に転送されたうえで自前の input.click() も走り、
+   * ダイアログが二重に開く（実測）。label は見た目のためだけに使う。
+   */
+  function attachRow(): {
+    el: HTMLElement;
+    file: File | null;
+    kind: 'material' | 'reference' | null;
+    upload(requestId: string): Promise<void>;
+  } {
+    const box = el('div', 'at');
+
+    const input = el('input') as HTMLInputElement;
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/webp,image/gif,image/avif';
+    input.style.display = 'none';
+
+    const row = el('div', 'ask-file');
+    const pick = el('button', 'ask-pick', '画像を添付');
+    const fname = el('span', 'ask-fn', '');
+    const kindBox = el('div', 'ask-kind');
+    pick.addEventListener('click', () => input.click());
+    row.appendChild(pick);
+    row.appendChild(fname);
+    box.appendChild(input);
+    box.appendChild(row);
+    box.appendChild(kindBox);
+
+    const out = {
+      el: box,
+      file: null as File | null,
+      kind: null as 'material' | 'reference' | null,
+      async upload(requestId: string) {
+        if (!out.file || !out.kind) return;
+        const signed = await o.api.signAttachment({
+          requestId,
+          filename: out.file.name,
+          mime: out.file.type,
+          bytes: out.file.size,
+          width: null,
+          height: null,
+          kind: out.kind,
+        });
+        await putToSignedUrl(signed.uploadUrl, out.file);
+      },
+    };
+
+    input.addEventListener('change', () => {
+      out.file = input.files && input.files[0] ? input.files[0] : null;
+      out.kind = null;
+      fname.textContent = out.file ? out.file.name : '';
+      kindBox.innerHTML = '';
+      if (!out.file) return;
+      kindBox.appendChild(el('span', 'ask-kq', 'この画像は？'));
+      const mk = (v: 'material' | 'reference', label: string) => {
+        const b = el('button', 'ask-kb', label);
+        b.addEventListener('click', () => {
+          out.kind = v;
+          for (const n of Array.prototype.slice.call(kindBox.querySelectorAll('.ask-kb'))) {
+            (n as HTMLElement).classList.remove('on');
+          }
+          b.classList.add('on');
+        });
+        return b;
+      };
+      kindBox.appendChild(mk('material', 'サイトに使ってください'));
+      kindBox.appendChild(mk('reference', 'イメージの参考です'));
+    });
+
+    return out;
   }
 
   /** 返答をお願いしている件数 */

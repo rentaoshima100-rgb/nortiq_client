@@ -2,7 +2,7 @@
 import { build, context } from 'esbuild';
 import { gzipSync } from 'node:zlib';
 import { createHash, randomBytes } from 'node:crypto';
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -14,6 +14,28 @@ const watch = process.argv.includes('--watch');
 // 13.1 の予算。超えたらビルドを失敗させる。
 const GZIP_BUDGET = 20 * 1024;
 
+/*
+ * どのビルドが動いているかの目印。
+ *
+ * w.js はブラウザに5分キャッシュされ、開きっぱなしのタブはもっと長く
+ * 古いままになる。「入れたはずの機能が出ない」と言われたときに、
+ * **古い w.js を掴んでいるのか、実装が悪いのか**を切り分けられないと、
+ * 毎回コードを疑うところから始まる（実測で2回やった）。
+ *
+ * ソースの中身から作るので、内容が変わらなければ同じ値になる。
+ *   curl -s https://…/w.js | head -c 60   ← 配信されているもの
+ *   ホスト要素の data-nq-build             ← ブラウザが動かしているもの
+ * この2つを比べれば、キャッシュかどうかが即分かる。
+ */
+function buildStamp() {
+  const h = createHash('sha256');
+  for (const f of readdirSync(join(root, 'widget/src')).sort()) {
+    h.update(f).update(readFileSync(join(root, 'widget/src', f)));
+  }
+  return h.digest('hex').slice(0, 8);
+}
+const STAMP = buildStamp();
+
 const options = {
   entryPoints: [entry],
   outfile,
@@ -24,7 +46,8 @@ const options = {
   minify: !watch,
   sourcemap: watch ? 'inline' : false,
   legalComments: 'none',
-  banner: { js: '/* Nortiq Revise widget */' },
+  banner: { js: `/* Nortiq Revise widget build:${STAMP} */` },
+  define: { __NQ_BUILD__: JSON.stringify(STAMP) },
   logLevel: 'info',
 };
 

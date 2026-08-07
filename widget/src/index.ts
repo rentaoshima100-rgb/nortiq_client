@@ -127,6 +127,13 @@ function start(
   const host = document.createElement('nq-revise');
   host.style.cssText =
     'all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483647;pointer-events:none;';
+  /*
+   * どのビルドが動いているか。**ここだけ light DOM に出す。**
+   * 「入れたはずの機能が出ない」ときに、配信されている w.js の先頭コメントと
+   * この値を比べれば、古いものを掴んでいるかが一目で分かる。
+   * 中身はソースのハッシュなので、秘密は含まれない。
+   */
+  host.setAttribute('data-nq-build', __NQ_BUILD__);
   document.documentElement.appendChild(host);
   const root = host.attachShadow({ mode: 'closed' });
   const style = document.createElement('style');

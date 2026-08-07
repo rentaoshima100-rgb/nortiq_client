@@ -251,7 +251,8 @@ textarea:focus { border-color: #2563eb; background: #fff; }
 .item .ask-b { font-size: 13px; line-height: 1.7; margin-top: 4px; }
 .item .ask-i { width: 100%; margin-top: 8px; padding: 8px 10px; font: inherit; font-size: 13px; border: 1px solid #cfd8e3; border-radius: 6px; resize: vertical; box-sizing: border-box; background: #fff; }
 .item .ask-file { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-.item .ask-pick { display: inline-block; padding: 5px 12px; font-size: 12px; color: #16487f; background: #fff; border: 1px solid #cfe0f2; border-radius: 6px; cursor: pointer; }
+/* label ではなく button。label の中に file input を置くとダイアログが二重に開く */
+.item .ask-pick { display: inline-block; padding: 5px 12px; font: inherit; font-size: 12px; color: #16487f; background: #fff; border: 1px solid #cfe0f2; border-radius: 6px; cursor: pointer; }
 .item .ask-fn { font-size: 11px; color: #51606f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item .ask-kind { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
 .item .ask-kq { font-size: 11px; color: #51606f; }
@@ -261,6 +262,9 @@ textarea:focus { border-color: #2563eb; background: #fff; }
 .item .ask-s { padding: 6px 14px; font-size: 12px; font-weight: 600; color: #fff; background: #1d5fa8; border: 0; border-radius: 6px; cursor: pointer; }
 .item .ask-s:disabled { opacity: .5; cursor: default; }
 .item .ask-n { font-size: 11px; color: #51606f; }
+/* 確認が出ていない依頼にも、あとから写真を足せる入口 */
+.item .more { margin-top: 8px; }
+.item .more-b { padding: 0; font-size: 11px; color: #16487f; background: none; border: 0; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .item .ck { margin-right: 2px; accent-color: #2563eb; width: 16px; height: 16px; }
 .empty { padding: 40px 20px; text-align: center; font-size: 13px; color: #94a3b8; }
 

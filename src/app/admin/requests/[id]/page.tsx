@@ -13,6 +13,7 @@ import {
   type ProposalView,
 } from './design-ui';
 import { ClientText, TranslateButton } from '@/app/admin/translate-ui';
+import { AssetSwap } from './asset-ui';
 import { AskClient, AutoFixMark, FixThisRequest, StaffAttach, type AutoJob } from './staff-ui';
 
 export const dynamic = 'force-dynamic';
@@ -379,6 +380,12 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         )}
         <StaffAttach requestId={req.id} />
       </section>
+
+      {/* 素材が来ていて、押された要素が画像なら差し替えられる。
+          どちらか欠けていても理由を出したいので、片方あれば出す */}
+      {(files.some((f) => f.att.kind === 'material') || loc.srcAttr) && (
+        <AssetSwap requestId={req.id} />
+      )}
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="mb-3 text-sm font-bold">{t('ロケータ（6.7）')}</h2>

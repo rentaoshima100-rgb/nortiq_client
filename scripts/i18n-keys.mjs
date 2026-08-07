@@ -31,6 +31,7 @@ const LIB = [
   'src/lib/auto-text.ts',
   'src/lib/fix-instructions.ts',
   'src/lib/translate.ts',
+  'src/lib/asset-swap.ts',
 ];
 const files = [
   ...walk('src/app/admin'),

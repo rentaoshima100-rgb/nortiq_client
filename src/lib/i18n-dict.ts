@@ -10,6 +10,36 @@
  * あちらの言語は案件ごとの話で、今は日本語のみ。
  */
 export const DICT: Record<string, string> = {
+  // ── 写真の差し替え（9.10）
+  写真を差し替える: 'Replace the photo',
+  'クライアントが「素材」として送った画像で、リポジトリの元ファイルを置き換える PR を出します。差し替え先は依頼時に押された img の src で決まっているので、推測はしません。':
+    'Opens a pull request replacing the original file in the repository with the image the client sent as "material". The target is fixed by the src of the img they clicked, so nothing is guessed.',
+  差し替え先を調べる: 'Find the target file',
+  'この内容で PR を出す': 'Open a pull request',
+  元ファイル: 'Original file',
+  '参照元の src': 'Referenced src',
+  差し替える画像: 'Replacement image',
+  候補: 'Candidates',
+  決まっていません: 'Not determined',
+  'ファイル名だけで当てています。念のため中身を確認してください':
+    'Matched on filename alone — check the content before merging',
+  ありません: 'None',
+  '{file} を差し替えます': 'Will replace {file}',
+  '{file} を読めません': 'Cannot read {file}',
+  '差し替える画像が添付されていません。クライアントに「素材」として送ってもらってください。':
+    'No replacement image is attached. Ask the client to send one as "material".',
+  'この依頼は画像を指していません（押された要素に src がありません）。':
+    'This request does not point at an image (the clicked element has no src).',
+  '元ファイルの候補が {n} 件あって決められません: {list}':
+    'There are {n} candidate files and no way to choose: {list}',
+  '元ファイルがリポジトリに見つかりません（{src}）。ビルドで生成されている可能性があります。':
+    'The original file is not in the repository ({src}). It may be generated at build time.',
+  画像ファイルだけ差し替えられます: 'Only image files can be replaced',
+  その候補は元ファイルの一覧にありません: 'That candidate is not in the list of original files',
+  添付が見つかりません: 'Attachment not found',
+  添付を読み出せませんでした: 'Could not read the attachment',
+  'PR を作れませんでした: {why}': 'Could not create the pull request: {why}',
+
   // ── 依頼文の英訳（クライアントが打った文。辞書では訳せないぶん）
   '{n}件を訳しました': 'Translated {n}',
   '{n}件を訳しました（{left}件は返りませんでした）': 'Translated {n} ({left} came back empty)',
