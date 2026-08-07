@@ -237,9 +237,24 @@ export function collectMatchedRules(target: Element): MatchedRule[] {
  * 後のビルドの DOM に当て直して段の分布を実測する。
  * ------------------------------------------------------------------------- */
 
+/**
+ * 何で当てたか。**段（tier）とは別の軸**。
+ *
+ *   nqid       注入された識別子。文書内で一意
+ *   content    その要素自身が名乗っているもの（id / src / href / 本文）
+ *   ordinal    nq-id の集団の中で「何番目か」。中身では絞れなかった
+ *   structure  「上から N 番目の div」。中身が入れ替われば別物を掴む
+ *
+ * 錨を打ち直してよいかの判断はこちらで行う。段だけで見ると、richPath
+ * （構造）も本文一致（中身）も同じ provisional なので、**構造で当てた
+ * ものまで書き込んでしまう**。実測で、それが5件の当て違いを固定した。
+ */
+export type MatchVia = 'nqid' | 'content' | 'ordinal' | 'structure';
+
 export interface MatchResult {
   el: Element;
   tier: MatchTier;
+  via: MatchVia;
 }
 
 /**
@@ -332,20 +347,20 @@ export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | n
   // 段1: nqId
   if (loc.nqId) {
     const group = nqIdGroup(loc.nqId);
-    if (group.length === 1) return { el: group[0], tier: 'confirmed' };
+    if (group.length === 1) return { el: group[0], tier: 'confirmed', via: 'nqid' };
     if (group.length > 1) {
       // グループ内を判別子で絞る。img / picture は own-text が空なので src 属性。
       const isImg = loc.tag === 'IMG' || loc.tag === 'PICTURE';
       if (isImg && loc.srcAttr) {
         const hits = group.filter((e) => srcAttrOf(e) === loc.srcAttr);
-        if (hits.length === 1) return { el: hits[0], tier: 'confirmed' };
+        if (hits.length === 1) return { el: hits[0], tier: 'confirmed', via: 'nqid' };
       } else if (loc.textHash) {
         const hits = group.filter((e) => textHashOf(ownText(e)) === loc.textHash);
-        if (hits.length === 1) return { el: hits[0], tier: 'confirmed' };
+        if (hits.length === 1) return { el: hits[0], tier: 'confirmed', via: 'nqid' };
       }
       // 段2: 序数のみ。confirmed にしてはならない（1件挿入で全部ずれる）
       if (loc.nqOrdinal != null && group[loc.nqOrdinal]) {
-        return { el: group[loc.nqOrdinal], tier: 'provisional' };
+        return { el: group[loc.nqOrdinal], tier: 'provisional', via: 'ordinal' };
       }
     }
   }
@@ -356,7 +371,7 @@ export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | n
   if (loc.elId) {
     const byId = qsa('#' + cssEsc(loc.elId));
     if (byId.length === 1 && byId[0].tagName === loc.tag) {
-      return { el: byId[0], tier: 'confirmed' };
+      return { el: byId[0], tier: 'confirmed', via: 'content' };
     }
   }
 
@@ -367,17 +382,17 @@ export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | n
   if (loc.tag === 'IMG' || loc.tag === 'PICTURE') {
     if (loc.srcAttr) {
       const hit = uniqueAmongTag(loc.tag, (e) => srcAttrOf(e) === loc.srcAttr);
-      if (hit) return { el: hit, tier: 'provisional' };
+      if (hit) return { el: hit, tier: 'provisional', via: 'content' };
     }
   } else if (loc.hrefKey) {
     const hit = uniqueAmongTag(loc.tag, (e) => hrefKey(e) === loc.hrefKey);
-    if (hit) return { el: hit, tier: 'provisional' };
+    if (hit) return { el: hit, tier: 'provisional', via: 'content' };
   }
 
   // 段2: 本文。まず直下のテキスト（従来どおり）。
   if (loc.textHash) {
     const hit = uniqueAmongTag(loc.tag, (e) => textHashOf(ownText(e)) === loc.textHash);
-    if (hit) return { el: hit, tier: 'provisional' };
+    if (hit) return { el: hit, tier: 'provisional', via: 'content' };
   }
 
   // 段2: 子孫を含めたテキスト。
@@ -385,7 +400,7 @@ export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | n
   // 出現アニメーションでは ownText が空になり、上の段が丸ごと効かない。
   if (loc.deepTextHash) {
     const hit = uniqueAmongTag(loc.tag, (e) => textHashOf(deepText(e)) === loc.deepTextHash);
-    if (hit) return { el: hit, tier: 'provisional' };
+    if (hit) return { el: hit, tier: 'provisional', via: 'content' };
   }
 
   /*
@@ -402,7 +417,7 @@ export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | n
    */
   if (loc.textHash) {
     const hit = uniqueAmongTag(loc.tag, (e) => textHashOf(deepText(e)) === loc.textHash);
-    if (hit) return { el: hit, tier: 'provisional' };
+    if (hit) return { el: hit, tier: 'provisional', via: 'content' };
   }
 
   /*
@@ -420,11 +435,11 @@ export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | n
   if (sample.length >= MIN_CROSS_TAG_TEXT) {
     if (loc.textHash) {
       const hit = uniqueAnyTag((e) => textHashOf(ownText(e)) === loc.textHash);
-      if (hit) return { el: hit, tier: 'provisional' };
+      if (hit) return { el: hit, tier: 'provisional', via: 'content' };
     }
     if (loc.deepTextHash) {
       const hit = uniqueAnyTag((e) => textHashOf(deepText(e)) === loc.deepTextHash);
-      if (hit) return { el: hit, tier: 'provisional' };
+      if (hit) return { el: hit, tier: 'provisional', via: 'content' };
     }
   }
 
@@ -451,7 +466,7 @@ export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | n
     try {
       const hits = qsa(loc.richPath);
       if (hits.length === 1 && hits[0].tagName === loc.tag) {
-        return { el: hits[0], tier: 'provisional' };
+        return { el: hits[0], tier: 'provisional', via: 'structure' };
       }
     } catch {
       /* 不正なセレクタは無視 */
@@ -470,7 +485,7 @@ export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | n
    */
   try {
     const hits = loc.cssPath ? document.body.querySelectorAll(loc.cssPath) : [];
-    if (hits.length === 1 && hits[0].tagName === loc.tag) return { el: hits[0], tier: 'weak' };
+    if (hits.length === 1 && hits[0].tagName === loc.tag) return { el: hits[0], tier: 'weak', via: 'structure' };
   } catch {
     /* 不正なセレクタは無視 */
   }
@@ -490,7 +505,7 @@ export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | n
         best = c;
       }
     }
-    if (best && bestIoU >= 0.6) return { el: best, tier: 'weak' };
+    if (best && bestIoU >= 0.6) return { el: best, tier: 'weak' , via: 'structure' };
   }
 
   // 段4

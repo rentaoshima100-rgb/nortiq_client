@@ -726,18 +726,23 @@ function start(
       /*
        * 当てられているうちに錨を打ち直す。
        *
-       * confirmed のときは無条件。加えて、**記録した nq-id が文書内に
-       * 1つも無いことが確かめられている**ときは provisional でも打ち直す。
-       * その nq-id は証明済みに無効なので、残しておくと毎回フォールバックを
-       * 通ることになり、次に本文が1文字変わった瞬間に落ちる。
-       * 死んだ手がかりを新しいものに置き換えるだけなので、情報は失わない。
+       * **判断は段（tier）ではなく「何で当てたか」で行う。**
+       * 段で見ると、本文一致（中身）も richPath（構造）も同じ provisional
+       * になる。実測で、それを段だけで許したために構造で当てたものまで
+       * 書き込まれ、5件が別の要素に固定された（loop-2026 の #3〜#6, #8）。
+       * 原本を残していたので戻せたが、二度とやらせない。
        *
-       * 構造の手がかりで当てたもの（weak）は塗り替えない。当て違いを
-       * そこで固定してしまう。
+       * 打ち直してよいのは:
+       *   - nq-id で当てた（文書内で一意。確実）
+       *   - 中身の手がかりで当てた、かつ**記録した nq-id が文書内に1つも
+       *     無いことが確かめられている**。その nq-id は証明済みに無効なので、
+       *     残しておくと毎回フォールバックを通り、次に本文が1文字変わった
+       *     瞬間に落ちる。死んだ手がかりを置き換えるだけで情報は失わない
+       *
+       * 序数と構造では絶対に書き込まない。当て違いをそこで固定する。
        */
-      const rescued =
-        hit.tier === 'provisional' && !!p.locator.nqId && deadNqId(p.locator);
-      if (hit.tier === 'confirmed' || rescued) {
+      const rescued = hit.via === 'content' && deadNqId(p.locator);
+      if (hit.via === 'nqid' || (hit.tier === 'confirmed' && hit.via === 'content') || rescued) {
         const next = collectLocator(hit.el);
         // 変わっていないなら送らない。開くたびに書き込むことになる
         if (anchorKey(next) !== anchorKey(p.locator)) fresh.push({ id: p.id, locator: next });
