@@ -277,6 +277,13 @@ export function hasContentCue(loc: Locator): boolean {
  * 直しの過程でタグが変わることがある（div を p にする、span を b で包む）。
  * タグが違うだけで見失うのはもったいない。一意であることは崩さない。
  */
+/**
+ * タグを捨てて本文だけで当てにいくときに、本文に求める最低の長さ。
+ * これより短いものは識別子として扱わない（実測で「—」1文字が別の要素に
+ * 当たった）。日本語は1文字の情報量が大きいので、6 でも短いほうに倒している。
+ */
+const MIN_CROSS_TAG_TEXT = 6;
+
 function uniqueAnyTag(pred: (e: Element) => boolean): Element | null {
   const all = document.getElementsByTagName('*');
   let hit: Element | null = null;
@@ -366,16 +373,23 @@ export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | n
    * 段2: タグを問わない本文一致。
    *
    * 直しの過程でタグが変わることがある（div → p、span を b で包む）。
-   * タグが違うだけで見失うのはもったいない。文書全体で1つに決まる
-   * ときだけ採るので、当て違いは起きない。
+   * タグが違うだけで見失うのはもったいない。
+   *
+   * ただし**短い文字列は識別子ではない。** 「—」「2024」「詳細」のような
+   * ものは、たまたま文書内で1つだっただけということが起きる。
+   * 実測で、記録は DIV なのに 1文字の「—」で別の SPAN に当たった。
+   * タグまで捨てる以上、本文そのものに弁別力を求める。
    */
-  if (loc.textHash) {
-    const hit = uniqueAnyTag((e) => textHashOf(ownText(e)) === loc.textHash);
-    if (hit) return { el: hit, tier: 'provisional' };
-  }
-  if (loc.deepTextHash) {
-    const hit = uniqueAnyTag((e) => textHashOf(deepText(e)) === loc.deepTextHash);
-    if (hit) return { el: hit, tier: 'provisional' };
+  const sample = (loc.textSample ?? '').trim();
+  if (sample.length >= MIN_CROSS_TAG_TEXT) {
+    if (loc.textHash) {
+      const hit = uniqueAnyTag((e) => textHashOf(ownText(e)) === loc.textHash);
+      if (hit) return { el: hit, tier: 'provisional' };
+    }
+    if (loc.deepTextHash) {
+      const hit = uniqueAnyTag((e) => textHashOf(deepText(e)) === loc.deepTextHash);
+      if (hit) return { el: hit, tier: 'provisional' };
+    }
   }
 
   /*
@@ -408,10 +422,19 @@ export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | n
     }
   }
 
-  // 段3: cssPath
+  /*
+   * 段3: cssPath
+   *
+   * **一意でなければ採らない。** ここだけ querySelector で先頭を採っていた。
+   * 実測で、`div > div:nth-of-type(4) > div:nth-of-type(2)` が2か所に当たり、
+   * その1件目がフッターだった。記録した本文は「BUSINESS — 事業内容…」。
+   * SPA でビューを切り替えても同じ形の入れ子はどこにでもあるので、
+   * 先頭を採ると**どの画面にも無関係な番号が出る**。
+   * 他の段はすべて一意を求めている。ここだけ緩いのは単なる穴だった。
+   */
   try {
-    const byPath = loc.cssPath ? document.body.querySelector(loc.cssPath) : null;
-    if (byPath && byPath.tagName === loc.tag) return { el: byPath, tier: 'weak' };
+    const hits = loc.cssPath ? document.body.querySelectorAll(loc.cssPath) : [];
+    if (hits.length === 1 && hits[0].tagName === loc.tag) return { el: hits[0], tier: 'weak' };
   } catch {
     /* 不正なセレクタは無視 */
   }
