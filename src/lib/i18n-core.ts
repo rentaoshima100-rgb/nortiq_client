@@ -25,6 +25,16 @@ export const LOCALE_COOKIE = 'nq_lang';
  *
  * 差し込む値が無い `{…}` はそのまま残す（訳の書き間違いを画面で気づける）。
  */
+/**
+ * `t` を渡されなかったときの既定。
+ *
+ * **恒等関数にしてはいけない。** 差し込みを素通しするので、
+ * `{n}件をまとめました` がそのまま画面やログに出る（実測で出した）。
+ * 日本語のまま、差し込みだけは行う。cron のように Cookie が無い経路と、
+ * ライブラリを直接叩く経路がこれを使う。
+ */
+export const plainT: T = (ja, vars) => translate('ja', ja, vars);
+
 export function translate(locale: Locale, ja: string, vars?: Vars): string {
   const s = locale === 'ja' ? ja : (DICT[ja] ?? ja);
   if (!vars) return s;

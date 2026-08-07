@@ -17,6 +17,7 @@
  * `problems` は社内が読む。`facts` はモデルに渡す本文に入るので、
  * **日本語のまま**にする（対象が日本語のサイトなので、ここを訳すと当たらなくなる）。
  */
+import { plainT } from './i18n-core';
 import type { T } from './i18n-core';
 
 export interface Material {
@@ -75,7 +76,7 @@ function countIn(hay: string, needle: string): number {
 export function checkMaterial(
   r: RequestForCheck,
   sent: { path: string; text: string }[],
-  t: T = (s) => s,
+  t: T = plainT,
 ): Material {
   const loc = (r.locator ?? {}) as { nqCount?: number | null; textSample?: string | null };
   const keys = targetKeys(r);

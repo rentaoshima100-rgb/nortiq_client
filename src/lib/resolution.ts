@@ -15,6 +15,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { logEvent, type Actor } from '@/lib/events';
+import { plainT } from '@/lib/i18n-core';
 import type { T } from '@/lib/i18n-core';
 import { adminDb } from '@/lib/supabase/admin';
 
@@ -76,7 +77,7 @@ export async function draftResolutions(
   actor: Actor,
   opts: { ids?: string[]; force?: boolean; t?: T } = {},
 ): Promise<DraftOut> {
-  const t = opts.t ?? ((s: string) => s);
+  const t = opts.t ?? plainT;
   const db = adminDb();
 
   if (!process.env.ANTHROPIC_API_KEY) {

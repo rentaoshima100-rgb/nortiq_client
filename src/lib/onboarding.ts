@@ -5,6 +5,7 @@
  * **その案件の実際の値が入った、済んでいる作業を抜いた指示**を出す。
  * 「何をすればいいか」を人間が読み替える手間をなくすのが目的。
  */
+import { plainT } from './i18n-core';
 import type { T } from './i18n-core';
 
 export interface SiteCheck {
@@ -86,7 +87,7 @@ export interface Step {
  * 出す側（社内）が見ている言語に合わせる。日本語のままにしたい相手には
  * タブを日本語に戻してからコピーすればよい。
  */
-export function steps(p: OnboardingInput, c: SiteCheck, t: T = (s) => s): Step[] {
+export function steps(p: OnboardingInput, c: SiteCheck, t: T = plainT): Step[] {
   const keyMatches = c.snippetKey === p.snippetKey;
   return [
     {
@@ -133,7 +134,7 @@ export function steps(p: OnboardingInput, c: SiteCheck, t: T = (s) => s): Step[]
  * エンジニアにそのまま渡せる指示文を作る。
  * AI コーディングエージェントに貼っても動くように書く。
  */
-export function buildPrompt(p: OnboardingInput, c: SiteCheck, t: T = (s) => s): string {
+export function buildPrompt(p: OnboardingInput, c: SiteCheck, t: T = plainT): string {
   const todo = steps(p, c, t).filter((s) => !s.done);
   const done = steps(p, c, t).filter((s) => s.done);
   const snippet = `<script src="${p.appUrl}/w.js" data-project="${p.snippetKey}" defer></script>`;

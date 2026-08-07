@@ -16,6 +16,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { github, githubConfigured, installationFor } from '@/lib/github-client';
+import { plainT } from '@/lib/i18n-core';
 import type { T } from '@/lib/i18n-core';
 import { logEvent, type Actor } from '@/lib/events';
 import { tokensText } from '@/lib/site-tokens.mjs';
@@ -117,7 +118,7 @@ export async function generateInstructions(
   opts: { requestIds?: string[]; t?: T } = {},
 ): Promise<{ ok: boolean; message: string; created: number; results: PlanResult[] }> {
   // 社内が読む文だけ訳す。モデルに渡すプロンプトは日本語のまま
-  const t = opts.t ?? ((s: string) => s);
+  const t = opts.t ?? plainT;
   const db = adminDb();
 
   const { data: proj } = await db
@@ -330,7 +331,7 @@ export async function applyInstructions(
   usage?: { input: number; cached: number; output: number; yen: number };
 }> {
   // 社内が読む文だけ訳す。モデルに渡すプロンプトは日本語のまま
-  const t = opts.t ?? ((s: string) => s);
+  const t = opts.t ?? plainT;
   const db = adminDb();
   const results: ApplyResultItem[] = [];
 

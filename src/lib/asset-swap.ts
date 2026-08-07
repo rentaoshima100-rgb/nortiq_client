@@ -18,6 +18,7 @@ import { logEvent, type Actor } from '@/lib/events';
 import { github, githubConfigured, installationFor } from '@/lib/github-client';
 import { IMAGE_EXT, resolveRepoPath } from '@/lib/asset-path';
 import type { GhTreeEntry } from '@/lib/github.d.mts';
+import { plainT } from '@/lib/i18n-core';
 import type { T } from '@/lib/i18n-core';
 import { adminDb } from '@/lib/supabase/admin';
 import type { AttachmentRow, Locator } from '@/lib/types';
@@ -55,7 +56,7 @@ async function repoFiles(
  */
 export async function planAssetSwap(
   requestId: string,
-  t: T = (s) => s,
+  t: T = plainT,
 ): Promise<{ ok: boolean; message: string; plan: SwapPlan | null }> {
   const db = adminDb();
 
@@ -146,7 +147,7 @@ export async function applyAssetSwap(
   actor: Actor,
   opts: { file?: string; t?: T } = {},
 ): Promise<{ ok: boolean; message: string; prUrl?: string; file?: string }> {
-  const t = opts.t ?? ((s: string) => s);
+  const t = opts.t ?? plainT;
   const db = adminDb();
 
   const pre = await planAssetSwap(requestId, t);

@@ -17,6 +17,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { github, githubConfigured, installationFor } from '@/lib/github-client';
+import { plainT } from '@/lib/i18n-core';
 import type { T } from '@/lib/i18n-core';
 import { adminDb } from '@/lib/supabase/admin';
 import { logEvent, type Actor } from '@/lib/events';
@@ -46,7 +47,7 @@ const MARKUP_EXT = /\.(html?|jsx?|tsx?|vue|svelte|astro|liquid|erb|php|twig)$/i;
 export const STYLE_EXT = /\.(css|scss|sass|less|styl)$/i;
 export const SOURCE_EXT = new RegExp(`${MARKUP_EXT.source}|${STYLE_EXT.source}`, 'i');
 
-export function pathError(file: string, t: T = (s) => s): string | null {
+export function pathError(file: string, t: T = plainT): string | null {
   if (!file || file.includes('..')) return t('パスが不正です');
   if (FORBIDDEN.some((re) => re.test(file))) return t('禁止パスです: {file}', { file });
   if (!SOURCE_EXT.test(file)) return t('ソースファイルではありません: {file}', { file });
@@ -309,7 +310,7 @@ export function selectorsFrom(outerHtml: string, cssRules: { selector: string }[
 /** 一行の注記を足すのに要る、無害なタグだけ */
 const TEXT_TAGS = new Set(['p', 'span', 'small', 'div', 'li', 'br', 'strong', 'em', 'b', 'i']);
 
-export function structureChanged(oldStr: string, newStr: string, t: T = (s) => s): string | null {
+export function structureChanged(oldStr: string, newStr: string, t: T = plainT): string | null {
   const tagList = (s: string) =>
     [...s.matchAll(/<\s*\/?\s*([a-zA-Z][\w-]*)/g)].map((m) => m[1].toLowerCase());
   const before = tagList(oldStr);
@@ -385,7 +386,7 @@ export async function runAutoText(
   prUrl?: string;
 }> {
   // 社内が読む文だけ訳す。モデルに渡すプロンプトは日本語のまま
-  const t = opts.t ?? ((s: string) => s);
+  const t = opts.t ?? plainT;
   const db = adminDb();
   const results: AutoResult[] = [];
 

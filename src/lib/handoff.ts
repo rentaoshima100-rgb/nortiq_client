@@ -17,6 +17,8 @@
  * ここでは LLM を呼ばない。持っている材料を並べるだけ。
  * 呼ばないほうが速く、費用もかからず、内容が予測できる。
  */
+import { plainT } from '@/lib/i18n-core';
+import { ATTACHMENTS_BUCKET } from '@/lib/env';
 import type { T } from '@/lib/i18n-core';
 import { tokensText } from '@/lib/site-tokens.mjs';
 import type { SiteTokens } from '@/lib/site-tokens-store';
@@ -51,7 +53,10 @@ interface Row {
 }
 
 /** 依頼1件ぶん。実装者が読んで、そのまま手が動く形にする */
-function requestBlock(r: Row, atts: { filename: string; kind: string }[]): string {
+function requestBlock(
+  r: Row,
+  atts: { filename: string; kind: string; url: string | null }[],
+): string {
   const loc = r.locator_live ?? r.locator;
   const L: string[] = [];
 
@@ -121,11 +126,13 @@ function requestBlock(r: Row, atts: { filename: string; kind: string }[]): strin
   }
 
   if (atts.length) {
-    L.push('**添付**');
+    L.push('**添付（クライアントが送った画像。URL から取得できます）**');
     for (const a of atts) {
-      L.push(`- ${a.filename}（${a.kind === 'material' ? 'サイトに使う素材' : 'イメージの参考'}）`);
+      const kind =
+        a.kind === 'material' ? 'サイトに使う素材' : 'イメージの参考（そのまま載せない）';
+      L.push(`- ${a.filename}（${kind}）`);
+      if (a.url) L.push(`  ${a.url}`);
     }
-    L.push('※ 画像そのものは案件画面から受け取ってください。');
     L.push('');
   }
 
@@ -141,7 +148,7 @@ export async function buildHandoff(
   projectId: string,
   opts: { ids?: string[]; statuses?: string[]; t?: T } = {},
 ): Promise<HandoffOut> {
-  const t = opts.t ?? ((s: string) => s);
+  const t = opts.t ?? plainT;
   const db = adminDb();
 
   const { data: proj } = await db
@@ -168,15 +175,34 @@ export async function buildHandoff(
 
   const { data: atts } = await db
     .from('attachments')
-    .select('request_id, filename, kind')
+    .select('request_id, filename, kind, storage_path')
     .in(
       'request_id',
       rows.map((r) => r.id),
     );
-  const byReq = new Map<string, { filename: string; kind: string }[]>();
-  for (const a of (atts ?? []) as { request_id: string; filename: string; kind: string }[]) {
+  /*
+   * 添付は URL ごと載せる。**写真を必須にした以上、ここに無いと
+   * 「一度で投げられる」にならない。** 署名付き URL は7日で切れる。
+   * プロンプトは貼るまでに間が空くので、既定の10分では短すぎる。
+   */
+  const SIGNED_TTL = 7 * 24 * 3600;
+  const signed = new Map<string, string>();
+  const paths = (atts ?? []).map((a) => (a as { storage_path: string }).storage_path);
+  if (paths.length) {
+    const { data: urls } = await db.storage
+      .from(ATTACHMENTS_BUCKET)
+      .createSignedUrls(paths, SIGNED_TTL);
+    for (const u of urls ?? []) if (u.signedUrl && u.path) signed.set(u.path, u.signedUrl);
+  }
+  const byReq = new Map<string, { filename: string; kind: string; url: string | null }[]>();
+  for (const a of (atts ?? []) as {
+    request_id: string;
+    filename: string;
+    kind: string;
+    storage_path: string;
+  }[]) {
     const list = byReq.get(a.request_id) ?? [];
-    list.push({ filename: a.filename, kind: a.kind });
+    list.push({ filename: a.filename, kind: a.kind, url: signed.get(a.storage_path) ?? null });
     byReq.set(a.request_id, list);
   }
 
