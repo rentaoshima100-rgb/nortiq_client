@@ -50,6 +50,11 @@ export interface RoundsResponse {
   answered: boolean;
   inCurrentRound: boolean;
     carriedOver: boolean;
+    /**
+     * 目印が外れたときに、場所を思い出すための手がかり。
+     * 依頼を出した当時の文言とページ内のおおよその位置。
+     */
+    hint?: { text: string | null; percent: number | null; kind: string | null };
   }[];
 }
 

@@ -55,6 +55,22 @@ export function openComposer(o: ComposerOptions): Composer {
   ta.placeholder = '例）この見出しをもう少し大きくしてください';
   body.appendChild(ta);
 
+  /*
+   * 画面の写真を勧める。
+   *
+   * 依頼のとおりに直すと、目印が頼りにしている文言そのものが変わる。
+   * そこで目印が外れると、あとから「どこの話でしたか」を聞くことになる。
+   * **そのときに効くのは、その人が見ていた画面の写真**。位置も見た目も
+   * 一枚で残る。指し直しをお願いする回数がそのぶん減る。
+   *
+   * 強制はしない。1行だけ添えて、押しやすいところに置く。
+   */
+  const shotTip = el('div', 'tip');
+  shotTip.appendChild(
+    el('span', undefined, '画面の写真を添えていただけると確実です（スクリーンショットで結構です）'),
+  );
+  body.appendChild(shotTip);
+
   const fileList = el('div');
   body.appendChild(fileList);
 
@@ -65,7 +81,7 @@ export function openComposer(o: ComposerOptions): Composer {
 
   // フッタ
   const foot = el('div', 'foot');
-  const attachBtn = el('button', 'btn sec', '画像を添付');
+  const attachBtn = el('button', 'btn sec', '画面の写真を添付');
   const sendBtn = el('button', 'btn pri', '送信する');
   foot.appendChild(attachBtn);
   foot.appendChild(sendBtn);

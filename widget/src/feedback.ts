@@ -229,19 +229,45 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
       m.appendChild(el('div', 'bd2', r.body));
 
       /*
-       * 箇所を出せていないものには、指し直しの入口を置く。
+       * 箇所を出せていないものには、**何が起きたかを説明してから**
+       * 指し直しの入口を置く。
        *
-       * こちらが文言を直すと、本文の手がかりも nq-id も同時に変わることが
-       * あり、照合では戻せない。「見つかりません」で終わらせず、
-       * その場で1タップ指し直せるようにする。
+       * ご依頼のとおり文言を直すと、その文言を頼りにしていた目印が
+       * 外れることがある。仕組みの話をしても仕方ないので、
+       * 「直したので外れました」「指し直してください」とだけ伝える。
+       *
+       * 併せて**当時の文言と位置**を出す。「依頼 #12 の箇所が分かりません」
+       * とだけ言われても本人は思い出せない。何と書いてあったかが分かれば
+       * たいてい思い出せる。
        */
       if (!placed && r.pagePath === location.pathname.replace(/(.)\/$/, '$1')) {
-        const fix = el('button', 'repin', 'この箇所を指し直す');
+        const box = el('div', 'lost');
+        box.appendChild(
+          el('div', 'lost-h', 'この箇所の目印が外れています'),
+        );
+        box.appendChild(
+          el(
+            'div',
+            'lost-b',
+            'ご依頼のとおりに直した際、目印が外れることがあります。お手数ですが、もう一度その箇所をお選びください。',
+          ),
+        );
+        const h = r.hint;
+        if (h && (h.text || h.percent != null)) {
+          const cue = el('div', 'lost-c');
+          if (h.text) cue.appendChild(el('div', undefined, 'ご依頼時の表示：「' + h.text + '」'));
+          if (h.percent != null) {
+            cue.appendChild(el('div', undefined, 'ページの上から約 ' + h.percent + '% のあたり'));
+          }
+          box.appendChild(cue);
+        }
+        const fix = el('button', 'repin', 'この箇所を選び直す');
         fix.addEventListener('click', (ev) => {
           ev.stopPropagation();
           o.onRepin(r.seq);
         });
-        m.appendChild(fix);
+        box.appendChild(fix);
+        m.appendChild(box);
       }
 
       /*

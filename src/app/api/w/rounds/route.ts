@@ -8,10 +8,38 @@ import {
   usedFreeRounds,
 } from '@/lib/rounds';
 import { adminDb } from '@/lib/supabase/admin';
+import type { Locator } from '@/lib/types';
 import { authenticateWidget } from '@/lib/widget-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+/**
+ * 目印が外れたときに、本人が場所を思い出すための手がかり。
+ *
+ * 修正を当てると、指していた要素の文言そのものが変わる。目印は
+ * その文言を頼りにしているので、直した瞬間に外れることがある。
+ * そのとき「依頼 #12 の箇所が分かりません」とだけ出しても、本人は
+ * 何のことか思い出せない。**依頼を出した当時の値**を添えて返す。
+ *
+ * 当時の値を使うのが要点。打ち直した錨（locator_live）は今の DOM を
+ * 指しているので、思い出す助けにはならない。
+ */
+function hintOf(
+  original: Locator | null,
+  live: Locator | null,
+): { text: string | null; percent: number | null; kind: string | null } {
+  const o = original ?? live;
+  if (!o) return { text: null, percent: null, kind: null };
+  const sample = (o.textSample ?? '').trim();
+  const h = Math.max(1, o.docHeight || 0);
+  const y = o.bbox?.y ?? 0;
+  return {
+    text: sample ? sample.slice(0, 60) : null,
+    percent: o.docHeight ? Math.min(100, Math.max(0, Math.round((y / h) * 100))) : null,
+    kind: o.tag ? o.tag.toLowerCase() : null,
+  };
+}
 
 export async function OPTIONS(req: Request) {
   return handlePreflight(req);
@@ -41,7 +69,12 @@ export async function GET(req: Request) {
 
   const { data: reqs } = await db
     .from('requests')
-    .select('id, seq, body, status, category, page_path, round_id, created_at, client_question, client_answer')
+    // locator は「そのとき何を指していたか」を思い出してもらうために要る。
+    // 修正を当てると目印が外れることがあり、そのとき本人が場所を
+    // 特定できないと、指し直しをお願いしても答えようがない。
+    .select(
+      'id, seq, body, status, category, page_path, round_id, created_at, client_question, client_answer, locator, locator_live',
+    )
     .eq('project_id', projectId)
     .order('seq', { ascending: false })
     .limit(60);
@@ -92,6 +125,10 @@ export async function GET(req: Request) {
         answered: !!r.client_answer,
         inCurrentRound: !!round && r.round_id === round.id,
         carriedOver: r.round_id === null,
+        // 目印が外れたときの手がかり。**依頼を出した当時の**値を出す。
+        // 「そのとき何と書いてあったか」「ページのどのあたりか」が分かれば、
+        // 本人はたいてい思い出せる。
+        hint: hintOf(r.locator as Locator | null, r.locator_live as Locator | null),
       })),
     },
     { headers },

@@ -110,6 +110,11 @@ textarea:focus { border-color: #2563eb; background: #fff; }
 }
 .file .sz { font-size: 11px; color: #94a3b8; }
 .file .x { color: #94a3b8; padding: 4px; font-size: 15px; line-height: 1; }
+/* 画面の写真を勧める一行。強制しないので、控えめに置く */
+.tip {
+  margin-top: 8px; padding: 7px 10px; background: #f1f6fd; border-radius: 6px;
+  font-size: 11px; line-height: 1.6; color: #34557f;
+}
 .kindq { font-size: 12px; color: #64748b; margin: 10px 0 4px; }
 .opt { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; cursor: pointer; }
 .opt input { accent-color: #2563eb; width: 16px; height: 16px; }
@@ -237,11 +242,22 @@ textarea:focus { border-color: #2563eb; background: #fff; }
 /* サイト上に箇所を出せていないもの。依頼は残っていることを、
    番号を消さずに伝える。押せば「見つかりません」と出る */
 .item .no.unplaced { background: #fff; color: #64748b; border: 1px dashed #cbd5e1; }
-/* 照合で戻せないときの最後の手。目立たせすぎない */
-.item .repin {
-  margin-top: 6px; padding: 0; font: inherit; font-size: 11px; color: #16487f;
-  background: none; border: 0; text-decoration: underline; text-underline-offset: 2px;
+/* 目印が外れたときの説明。責める見た目にしない（相手のせいではない） */
+.item .lost {
+  margin-top: 8px; border-left: 3px solid #d9a441; background: #fdf8ef;
+  border-radius: 0 6px 6px 0; padding: 9px 11px;
 }
+.item .lost-h { font-size: 11px; font-weight: 700; color: #8a5a12; }
+.item .lost-b { font-size: 12px; line-height: 1.7; margin-top: 3px; color: #4a3a20; }
+.item .lost-c {
+  margin-top: 6px; padding: 6px 8px; background: #fff; border: 1px solid #ecdcbe;
+  border-radius: 5px; font-size: 11px; line-height: 1.7; color: #6b5836;
+}
+.item .repin {
+  margin-top: 8px; padding: 5px 12px; font: inherit; font-size: 12px; font-weight: 600;
+  color: #fff; background: #b8791f; border: 0; border-radius: 6px; cursor: pointer;
+}
+.item .repin:hover { background: #9c6519; }
 .item .m { flex: 1; min-width: 0; }
 .item .meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #94a3b8; }
 .item .st { margin-left: auto; border-radius: 999px; padding: 2px 8px; font-weight: 600; }
