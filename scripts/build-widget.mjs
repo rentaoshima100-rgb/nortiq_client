@@ -30,7 +30,10 @@ const GZIP_BUDGET = 20 * 1024;
 function buildStamp() {
   const h = createHash('sha256');
   for (const f of readdirSync(join(root, 'widget/src')).sort()) {
-    h.update(f).update(readFileSync(join(root, 'widget/src', f)));
+    // 行末は正規化する。Windows の作業コピーは CRLF、Vercel の checkout は
+    // LF なので、そのまま食わせると同じソースでも値が変わる（実測）
+    const src = readFileSync(join(root, 'widget/src', f), 'utf8').replace(/\r\n/g, '\n');
+    h.update(f).update(src, 'utf8');
   }
   return h.digest('hex').slice(0, 8);
 }
