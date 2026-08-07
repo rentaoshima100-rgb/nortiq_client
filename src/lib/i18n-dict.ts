@@ -926,4 +926,5 @@ export const DICT: Record<string, string> = {
     '(not set)',
   '（画像差し替えも有効）':
     ' (image replacement is on too)',
+  '箇所を指し直す →': 'Re-point this spot →',
 };

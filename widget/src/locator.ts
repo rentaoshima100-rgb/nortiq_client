@@ -267,8 +267,27 @@ export interface MatchResult {
  * この画面に居ない。** SPA で別のビューを見ているときがこれで、
  * ここで構造の手がかりに降りると、無関係な要素にピンが付く。
  */
+/** 記録した nq-id が、いまの文書に1つも無い（＝振り直された／要素が消えた） */
+export function deadNqId(loc: Locator): boolean {
+  return !!loc.nqId && nqIdGroup(loc.nqId).length === 0;
+}
+
 export function hasContentCue(loc: Locator): boolean {
-  return !!(loc.nqId || loc.elId || loc.srcAttr || loc.hrefKey || loc.textHash || loc.deepTextHash);
+  /*
+   * nq-id は「持っているか」ではなく「**まだ生きているか**」で数える。
+   *
+   * nq-id は sha1(ファイル名 + 構文木上の経路) で、経路には「同じ親の中で
+   * 同じタグの何番目か」が入っている。要素を1つ足せば後ろが全部振り直される。
+   * つまり文書内に無いことは「要素が消えた」ではなく「id が変わった」の
+   * ことが多い。それを生きた手がかりとして数えると、**注入したせいで
+   * ピンが弱くなる**という逆転が起きる。
+   *
+   * とくに svg / input / src の無い img / 空のラッパ div は、本文も src も
+   * href も空なので手がかりが nq-id ただ1つ。ここを塞ぐと、注入していない
+   * サイトなら降りられた構造の手がかりにすら降りられなくなる。
+   */
+  if (loc.nqId && nqIdGroup(loc.nqId).length > 0) return true;
+  return !!(loc.elId || loc.srcAttr || loc.hrefKey || loc.textHash || loc.deepTextHash);
 }
 
 /**
@@ -366,6 +385,23 @@ export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | n
   // 出現アニメーションでは ownText が空になり、上の段が丸ごと効かない。
   if (loc.deepTextHash) {
     const hit = uniqueAmongTag(loc.tag, (e) => textHashOf(deepText(e)) === loc.deepTextHash);
+    if (hit) return { el: hit, tier: 'provisional' };
+  }
+
+  /*
+   * 段2: 記録した「直下のテキスト」を、いまの「子孫込みのテキスト」と突き合わせる。
+   *
+   * 採取側は deep === text のとき deepTextHash を入れない（送る量を増やさない
+   * ため）。つまり <h2>会社概要</h2> のような葉要素は textHash しか持たない。
+   * そこへ後から <h2><span>会社概要</span></h2> と包む変更が入ると、
+   * ownText が空になって上の段が外れ、deepTextHash は無いので次の段も飛ぶ。
+   * **画面の文字は1バイトも変わっていないのに見失う。**
+   *
+   * 独立した段にする。上の述語に OR で混ぜると、ownText 一致1件と
+   * deepText 一致1件を uniqueAmongTag が2件と数えて、かえって外れる。
+   */
+  if (loc.textHash) {
+    const hit = uniqueAmongTag(loc.tag, (e) => textHashOf(deepText(e)) === loc.textHash);
     if (hit) return { el: hit, tier: 'provisional' };
   }
 

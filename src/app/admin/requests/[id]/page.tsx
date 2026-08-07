@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { getT, type T } from '@/lib/i18n';
 import { notFound } from 'next/navigation';
 import { ATTACHMENTS_BUCKET, SNAPSHOTS_BUCKET } from '@/lib/env';
-import { describeTarget, positionInPage, siteViewUrl } from '@/lib/describe';
+import { describeTarget, positionInPage, siteRepinUrl, siteViewUrl } from '@/lib/describe';
 import { adminDb } from '@/lib/supabase/admin';
 import type { AttachmentRow, Locator, MatchedRule, RequestRow } from '@/lib/types';
 import {
@@ -240,14 +240,27 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-bold">{t('どこの話か')}</h2>
           {project?.site_url && (
-            <a
-              href={siteViewUrl(project.site_url, req.page_path, req.seq)}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-            >
-              {t('サイトで見る →')}
-            </a>
+            <div className="flex items-center gap-2">
+              {/* 文言を直すと本文の手がかりが変わり、nq-id も振り直されることが
+                  ある。両方いっぺんに変わると照合では戻せないので、
+                  もう一度指してもらう導線を並べて置く */}
+              <a
+                href={siteRepinUrl(project.site_url, req.page_path, req.seq)}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
+              >
+                {t('箇所を指し直す →')}
+              </a>
+              <a
+                href={siteViewUrl(project.site_url, req.page_path, req.seq)}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+              >
+                {t('サイトで見る →')}
+              </a>
+            </div>
           )}
         </div>
         {shots.length > 0 && (

@@ -70,3 +70,18 @@ export function siteViewUrl(siteUrl: string, pagePath: string, seq: number): str
   const path = pagePath && pagePath !== '/' ? pagePath : '/';
   return `${base}${path}#nq-pin=${seq}`;
 }
+
+/**
+ * 「箇所を指し直す」の着地先。
+ *
+ * 指摘された文言をこちらが直すと、本文の手がかりが変わる。さらに nq-id は
+ * 「同じ親の中で同じタグの何番目か」から作っているので、要素を1つ足すと
+ * 後ろが全部振り直される。両方いっぺんに変わると照合では戻せない。
+ * そのときは**もう一度指してもらうのが唯一確実な手**なので、1クリックで
+ * その状態に入れるようにしておく。
+ */
+export function siteRepinUrl(siteUrl: string, pagePath: string, seq: number): string {
+  const base = siteUrl.replace(/\/+$/, '');
+  const path = pagePath && pagePath !== '/' ? pagePath : '/';
+  return `${base}${path}#nq-repin=${seq}`;
+}

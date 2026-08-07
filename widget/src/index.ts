@@ -10,7 +10,7 @@
 import { createApi, type Api, type PinDTO } from './api';
 import { openComposer, type Composer } from './composer';
 import { openFeedback } from './feedback';
-import { collectLocator, findByLocator } from './locator';
+import { collectLocator, deadNqId, findByLocator } from './locator';
 import { CSS_TEXT, PAGE_CSS } from './styles';
 import { docRect, el, fmtDate, isSelectable, jaLabel, shortLabel } from './util';
 
@@ -68,11 +68,27 @@ function acquireToken(projectKey: string): string | null {
  * 読んだ直後に URL から消す。
  */
 function readPinTarget(): number | null {
-  const m = /[#&]nq-pin=(\d+)/.exec(location.hash || '');
+  return readHashNumber('nq-pin');
+}
+
+/**
+ * 社内から「#nq-repin=3」で来たときに、その依頼の箇所を選び直す。
+ *
+ * こちらが文言を直すと、本文の手がかりも nq-id も同時に変わることがある
+ * （nq-id は「同じ親の中で同じタグの何番目か」から作っているので、
+ * 要素を1つ足すと後ろが全部ずれる）。そうなると照合では戻せない。
+ * 社内が案件画面からこのリンクで飛べば、1回クリックするだけで直る。
+ */
+function readRepinTarget(): number | null {
+  return readHashNumber('nq-repin');
+}
+
+function readHashNumber(key: string): number | null {
+  const m = new RegExp('[#&]' + key + '=(\\d+)').exec(location.hash || '');
   if (!m) return null;
   const seq = parseInt(m[1], 10);
   const rest = (location.hash || '')
-    .replace(/([#&])nq-pin=[^&]*/, '$1')
+    .replace(new RegExp('([#&])' + key + '=[^&]*'), '$1')
     .replace(/[#&]+$/, '');
   try {
     history.replaceState(null, '', location.pathname + location.search + (rest === '#' ? '' : rest));
@@ -663,6 +679,23 @@ function start(
       }
 
       const r = docRect(hit.el);
+
+      /*
+       * 当たっていても、その要素が**いま画面に出ていない**ことがある。
+       * 折りたたみ、開いていないモーダル、モバイル用と PC 用で片方だけ
+       * 表示される重複マークアップ。display:none の要素は
+       * getBoundingClientRect が 0,0,0,0 を返す。
+       *
+       * そのまま描くと left も top も 0 になり、該当するピンが**全部
+       * 文書の左上に重なる**。z-index は最大なのでロゴの上に乗り、
+       * 「知らない番号が1個ずっと出ている」ように見える。
+       * 照合は成功しているのに、見た目は壊れている。
+       */
+      if (r.w === 0 && r.h === 0) {
+        missing.push(p.seq);
+        continue;
+      }
+
       const node = el('button', 'pin' + (p.status === 'done' ? ' done' : ''), String(p.seq));
       node.style.left = Math.max(0, r.x + r.w - 13) + 'px';
       node.style.top = Math.max(0, r.y - 13) + 'px';
@@ -674,8 +707,21 @@ function start(
       pinsLayer.appendChild(node);
       drawn.set(p.seq, { node, rect: r });
 
-      // 当てられているうちに錨を打ち直す。弱い手がかりでは塗り替えない
-      if (hit && hit.tier === 'confirmed') {
+      /*
+       * 当てられているうちに錨を打ち直す。
+       *
+       * confirmed のときは無条件。加えて、**記録した nq-id が文書内に
+       * 1つも無いことが確かめられている**ときは provisional でも打ち直す。
+       * その nq-id は証明済みに無効なので、残しておくと毎回フォールバックを
+       * 通ることになり、次に本文が1文字変わった瞬間に落ちる。
+       * 死んだ手がかりを新しいものに置き換えるだけなので、情報は失わない。
+       *
+       * 構造の手がかりで当てたもの（weak）は塗り替えない。当て違いを
+       * そこで固定してしまう。
+       */
+      const rescued =
+        hit.tier === 'provisional' && !!p.locator.nqId && deadNqId(p.locator);
+      if (hit.tier === 'confirmed' || rescued) {
         const next = collectLocator(hit.el);
         // 変わっていないなら送らない。開くたびに書き込むことになる
         if (anchorKey(next) !== anchorKey(p.locator)) fresh.push({ id: p.id, locator: next });
@@ -831,6 +877,10 @@ function start(
     }, 250);
   });
   observer.observe(document.body, { childList: true, subtree: true });
+
+  // 社内から #nq-repin=3 で来たとき。ピンの読み込みを待ってから選択に入る
+  const repinOnBoot = readRepinTarget();
+  if (repinOnBoot != null) setTimeout(() => startRepin(repinOnBoot), 1200);
 
   loadPins();
   loadSummary();
