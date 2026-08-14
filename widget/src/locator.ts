@@ -38,6 +38,15 @@ export interface Locator {
   hrefKey?: string | null;
   /** クラス・id を含む経路。cssPath より弁別力が高い */
   richPath?: string | null;
+
+  /**
+   * 修正時に付けてもらう目印（data-nq-fix の値）。
+   *
+   * 依頼を実装した人が「この依頼で直したのはこの要素」と宣言したもの。
+   * 値は依頼番号の列（例: "3" / "3 7"）。採取時の要素に付いていれば記録する。
+   * 照合には依頼番号（FindOptions.fixSeq）のほうを使う。
+   */
+  fixRef?: string | null;
 }
 
 /** 設計 6.8 */
@@ -119,6 +128,7 @@ export function collectLocator(target: Element): Locator {
       document.body ? document.body.scrollHeight : 0,
     ),
     srcAttr: srcAttrOf(target),
+    fixRef: target.getAttribute('data-nq-fix'),
     elId: stableId(target),
     deepTextHash: deep && deep !== text ? textHashOf(deep) : null,
     hrefKey: hrefKey(target),
@@ -240,6 +250,8 @@ export function collectMatchedRules(target: Element): MatchedRule[] {
 /**
  * 何で当てたか。**段（tier）とは別の軸**。
  *
+ *   fixref     修正した人が付けた目印（data-nq-fix="依頼番号"）。依頼と要素を
+ *              直接結ぶ唯一の手がかりで、直しで本文が変わっても外れない
  *   nqid       注入された識別子。文書内で一意
  *   content    その要素自身が名乗っているもの（id / src / href / 本文）
  *   ordinal    nq-id の集団の中で「何番目か」。中身では絞れなかった
@@ -249,7 +261,7 @@ export function collectMatchedRules(target: Element): MatchedRule[] {
  * （構造）も本文一致（中身）も同じ provisional なので、**構造で当てた
  * ものまで書き込んでしまう**。実測で、それが5件の当て違いを固定した。
  */
-export type MatchVia = 'nqid' | 'content' | 'ordinal' | 'structure';
+export type MatchVia = 'fixref' | 'nqid' | 'content' | 'ordinal' | 'structure';
 
 export interface MatchResult {
   el: Element;
@@ -331,6 +343,14 @@ function uniqueAnyTag(pred: (e: Element) => boolean): Element | null {
 
 export interface FindOptions {
   /**
+   * この依頼の番号（requests.seq）。
+   *
+   * 修正時に付けてもらう目印 data-nq-fix="依頼番号" を照合するために使う。
+   * ロケータではなく**依頼そのもの**に属する値なので、opts で渡す
+   * （ロケータは採取時の記録であり、目印は採取のあとに付く）。
+   */
+  fixSeq?: number;
+  /**
    * 構造の手がかり（richPath / cssPath / bbox）まで降りてよいか。
    *
    * 既定は false。中身の手がかりが1つも当たらないなら、その要素は
@@ -343,7 +363,49 @@ export interface FindOptions {
   allowStructural?: boolean;
 }
 
+/** data-nq-fix の値（"3" / "3 7" のような番号の列）に seq が入っているか */
+function fixRefHas(value: string | null, seq: number): boolean {
+  if (!value) return false;
+  const tok = String(seq);
+  const parts = value.split(/[\s,]+/);
+  for (let i = 0; i < parts.length; i++) if (parts[i] === tok) return true;
+  return false;
+}
+
 export function findByLocator(loc: Locator, opts?: FindOptions): MatchResult | null {
+  /*
+   * 段0: 修正時に付けてもらった目印（data-nq-fix="依頼番号"）。
+   *
+   * ご依頼のとおりに直すと、頼りにしていた本文がまさに変わり、nq-id も
+   * 振り直される（同じ親の中で何番目か、から作っているため）。つまり
+   * **直した瞬間に他の手がかりが全部死ぬ**のがこの仕組みの宿命で、
+   * 照合をどれだけ賢くしても採取時の記録からは戻せない。
+   *
+   * 旧→新の対応を知っているのは、直したその人だけ。だから修正の手順書
+   * （handoff）で、直した要素に依頼番号を書き残してもらう。これは
+   * nq-id や id と同じ「識別子の宣言」であり、しかも依頼と要素を直接結ぶ。
+   *
+   * ちょうど1つのときだけ採る（約束5と同じ理屈）。2つ以上に付いている
+   * なら、ループのテンプレート側に付いてしまっているので目印にならない。
+   * タグは照合しない。直しでタグが変わることがあり（div を p にする）、
+   * この目印は人がその要素を名指しで付けたものなので、タグ違いで
+   * 捨てるとかえって見失う。
+   */
+  if (opts?.fixSeq != null) {
+    const marked = qsa('[data-nq-fix]');
+    let hit: Element | null = null;
+    let dup = false;
+    for (let i = 0; i < marked.length; i++) {
+      if (!fixRefHas(marked[i].getAttribute('data-nq-fix'), opts.fixSeq)) continue;
+      if (hit) {
+        dup = true;
+        break;
+      }
+      hit = marked[i];
+    }
+    if (hit && !dup) return { el: hit, tier: 'confirmed', via: 'fixref' };
+  }
+
   // 段1: nqId
   if (loc.nqId) {
     const group = nqIdGroup(loc.nqId);

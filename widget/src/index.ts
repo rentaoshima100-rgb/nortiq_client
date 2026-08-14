@@ -608,6 +608,7 @@ function start(
     return [
       l.nqId,
       l.nqOrdinal,
+      l.fixRef,
       l.elId,
       l.textHash,
       l.deepTextHash,
@@ -654,14 +655,14 @@ function start(
     const matched = new Map<string, ReturnType<typeof findByLocator>>();
     let anyContentHit = false;
     for (const p of pins) {
-      const hit = findByLocator(p.locator);
+      const hit = findByLocator(p.locator, { fixSeq: p.seq });
       matched.set(p.id, hit);
       if (hit) anyContentHit = true;
     }
     if (anyContentHit) {
       for (const p of pins) {
         if (matched.get(p.id)) continue;
-        matched.set(p.id, findByLocator(p.locator, { allowStructural: true }));
+        matched.set(p.id, findByLocator(p.locator, { fixSeq: p.seq, allowStructural: true }));
       }
     }
 
@@ -738,6 +739,10 @@ function start(
        * 原本を残していたので戻せたが、二度とやらせない。
        *
        * 打ち直してよいのは:
+       *   - 修正時の目印（data-nq-fix）で当てた。人がその依頼のために
+       *     名指しで付けたもので、これより確かな手がかりは無い。
+       *     **直しで死んだ本文や nq-id をここで新しい値に置き換える**のが、
+       *     この目印のいちばんの仕事
        *   - nq-id で当てた（文書内で一意。確実）
        *   - 中身の手がかりで当てた、かつ**記録した nq-id が文書内に1つも
        *     無いことが確かめられている**。その nq-id は証明済みに無効なので、
@@ -747,7 +752,12 @@ function start(
        * 序数と構造では絶対に書き込まない。当て違いをそこで固定する。
        */
       const rescued = hit.via === 'content' && deadNqId(p.locator);
-      if (hit.via === 'nqid' || (hit.tier === 'confirmed' && hit.via === 'content') || rescued) {
+      if (
+        hit.via === 'fixref' ||
+        hit.via === 'nqid' ||
+        (hit.tier === 'confirmed' && hit.via === 'content') ||
+        rescued
+      ) {
         const next = collectLocator(hit.el);
         // 変わっていないなら送らない。開くたびに書き込むことになる
         if (anchorKey(next) !== anchorKey(p.locator)) fresh.push({ id: p.id, locator: next });

@@ -5,7 +5,7 @@
  * ページに注入できる形にする。ハーネスが別実装の照合器を持つと、
  * 測っているものが本番と違うものになり、意味が無くなる。
  */
-import { collectLocator, findByLocator, type Locator } from './locator';
+import { collectLocator, findByLocator, type FindOptions, type Locator } from './locator';
 import { docRect } from './util';
 
 declare global {
@@ -13,7 +13,7 @@ declare global {
     __nqReplay: {
       findByLocator(
       loc: Locator,
-      opts?: { allowStructural?: boolean },
+      opts?: FindOptions,
     ): { tier: string; via: string; tag: string; text: string; bbox: ReturnType<typeof docRect> } | null;
       collectLocator(el: Element): Locator;
     };
@@ -21,7 +21,7 @@ declare global {
 }
 
 window.__nqReplay = {
-  findByLocator(loc: Locator, opts?: { allowStructural?: boolean }) {
+  findByLocator(loc: Locator, opts?: FindOptions) {
     const hit = findByLocator(loc, opts);
     if (!hit) return null;
     // 当たった要素の**いまの本文**も返す。番号の取り違えは、依頼文と

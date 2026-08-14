@@ -85,6 +85,8 @@ export interface Locator {
   hrefKey?: string | null;
   /** クラス・id を含む経路 */
   richPath?: string | null;
+  /** 修正時に付けてもらう目印（data-nq-fix の値。依頼番号の列） */
+  fixRef?: string | null;
 }
 
 /** 設計 6.8 の target（img / picture のときだけ入る） */
