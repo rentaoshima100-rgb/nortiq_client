@@ -90,7 +90,8 @@ for (const path of pages) {
     const loc = r.locator_live ?? r.locator;
     let hit = null;
     try {
-      hit = findByLocator(loc);
+      // 本番の drawPins と同じ呼び方にする（data-nq-fix の照合も含めて測る）
+      hit = findByLocator(loc, { fixSeq: r.seq });
     } catch (e) {
       hit = null;
       console.log(`    #${r.seq} 例外: ${e.message}`);

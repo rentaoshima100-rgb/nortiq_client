@@ -43,8 +43,9 @@
 | 14 | **同じリポジトリに複数案件がぶら下がっているとき、webhook は何もしない**。取り違えて「出た」と記録するほうが害が大きい | — | `api/gh/webhook` の `projectForRepo` |
 
 | 15 | **英語化するのは社内が読む文だけ**。モデルに渡すプロンプト、`material-check` の `facts`、ウィジェット・LINE・CORS の文言は日本語のまま | — | `src/lib/i18n-dict.ts` / `scripts/i18n-keys.mjs` |
+| 16 | **`data-nq-fix` は文書内でちょうど1つの要素に当たるときだけ採る**。2つ以上に付いているならテンプレート側に付いており、目印として無効。先頭を採ると当て違いを confirmed で固定する | — | `widget/src/locator.ts` の段0 / `src/lib/handoff.ts` |
 
-11〜15 は設計書 v1.4 に無い。Tier 0 と導入の自動化を入れたときに決めたもの（15 は社内 UI の英語化を入れたとき）。
+11〜16 は設計書 v1.4 に無い。Tier 0 と導入の自動化を入れたときに決めたもの（15 は社内 UI の英語化、16 は Claude Code への手渡し運用を入れたとき）。
 
 ---
 
@@ -55,10 +56,14 @@
   closed shadow の retarget により、自分の内側で起きたイベントは
   外側からは `e.target === host` に見える。抑止の除外判定はこれを使っている
 - esbuild は**型を見ない**。`npm run typecheck:widget` を別途走らせること
-- ロケータの Tier 0 用フィールド（`elId` / `deepTextHash` / `hrefKey` / `richPath`）は
-  **すべて optional**。古い依頼の保存済みロケータには入っていないので、
-  参照側は必ず欠損を許すこと。段の意味は変えていない（序数だけの一致を
-  confirmed にしない＝約束 5 はそのまま）
+- ロケータの Tier 0 用フィールド（`elId` / `deepTextHash` / `hrefKey` / `richPath`）と
+  修正時の目印（`fixRef`）は**すべて optional**。古い依頼の保存済みロケータには
+  入っていないので、参照側は必ず欠損を許すこと。段の意味は変えていない
+  （序数だけの一致を confirmed にしない＝約束 5 はそのまま）
+- **修正で本文と nq-id が同時に死ぬ問題は、照合側では解けない**。旧→新の対応を
+  知っているのは直した本人だけなので、handoff の手順書で直した要素に
+  `data-nq-fix="依頼番号"` を残させ、`findByLocator` の段0（`via: 'fixref'`）で
+  最優先に照合する。fixref で当たったら錨（`locator_live`）を打ち直してよい
 - 段の分布は `worker/measure-tiers.mjs` で測れる。`--ignore-nqid` を付けると
   注入前の状態を同じページで再現できるので、A/B がそのまま出る
 - ホストは `document.documentElement` に `position:absolute` で挿す。
