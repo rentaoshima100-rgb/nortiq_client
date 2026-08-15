@@ -47,6 +47,17 @@ export interface Locator {
    * 照合には依頼番号（FindOptions.fixSeq）のほうを使う。
    */
   fixRef?: string | null;
+
+  /**
+   * 人が「指し直し」で決めた錨であることの印。
+   *
+   * 段0（fixref）は目印を最優先で採るので、目印が別の要素に付いていると
+   * 指し直しても次の描画で目印側に戻り、locator_live まで上書きしてしまう。
+   * 直した本人しか目印を消せないため、画面の中では二度と直せなくなる。
+   * 人が名指しした錨のほうを強いものとして扱い、この印が付いていたら
+   * 段0 を使わない（drawPins が fixSeq を渡さない）。
+   */
+  pinnedByHuman?: boolean;
 }
 
 /** 設計 6.8 */

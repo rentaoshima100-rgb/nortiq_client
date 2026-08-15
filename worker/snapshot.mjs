@@ -121,7 +121,9 @@ try {
     for (const vw of VIEWPORTS) {
       const toMatch = onThisPage
         .filter((r) => viewportFor(r) === vw)
-        .map((r) => ({ id: r.id, locator: r.locator }));
+        // seq は capture 側で fixSeq（段0の目印）に使う。落とすと
+        // 目印でしか当たらない依頼の切り出しが作られない
+        .map((r) => ({ id: r.id, seq: r.seq, locator: r.locator }));
 
       process.stdout.write(`  ${page.path} @ ${vw}px … `);
       const cap = await withRetry(

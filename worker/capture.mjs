@@ -154,7 +154,10 @@ export async function capturePage(browser, url, viewportW, opts = {}) {
       await page.addScriptTag({ content: opts.locatorBundle });
       matches = await page.evaluate((items) => {
         return items.map((it) => {
-          const hit = window.__nqReplay.findByLocator(it.locator);
+          // 本番と同じ条件。fixSeq が無いと、目印でしか当たらない依頼が
+          // tier: 'stale' / bbox: null になり切り出しが作られない
+          const fixSeq = it.locator?.pinnedByHuman ? undefined : it.seq;
+          const hit = window.__nqReplay.findByLocator(it.locator, { fixSeq });
           return {
             id: it.id,
             tier: hit ? hit.tier : 'stale',

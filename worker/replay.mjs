@@ -121,9 +121,13 @@ try {
       await page.addScriptTag({ content: bundle });
 
       for (const r of reqs) {
+        // 本番（widget/src/index.ts の drawPins）と同じ条件で当てる。
+        // fixSeq を渡さないと、目印でしか当たらない依頼が stale に数えられ、
+        // この計測が存在する目的である段の分布そのものを過小に見せる。
+        // 人が指し直した錨は本番同様 段0 を使わない。
         const hit = await page.evaluate(
-          (loc) => window.__nqReplay.findByLocator(loc),
-          r.locator,
+          ([loc, fixSeq]) => window.__nqReplay.findByLocator(loc, { fixSeq }),
+          [r.locator, r.locator?.pinnedByHuman ? undefined : r.seq],
         );
         const tier = hit ? hit.tier : 'stale';
         tally[tier] = (tally[tier] ?? 0) + 1;

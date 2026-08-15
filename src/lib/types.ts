@@ -87,6 +87,8 @@ export interface Locator {
   richPath?: string | null;
   /** 修正時に付けてもらう目印（data-nq-fix の値。依頼番号の列） */
   fixRef?: string | null;
+  /** 人が「指し直し」で決めた錨。true のとき照合の段0（fixref）を使わない */
+  pinnedByHuman?: boolean | null;
 }
 
 /** 設計 6.8 の target（img / picture のときだけ入る） */
