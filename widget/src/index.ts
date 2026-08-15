@@ -439,8 +439,16 @@ function start(
         toast('依頼 #' + seq + ' が見つかりませんでした');
         return;
       }
+      /*
+       * 人が名指しした錨には印を付ける。
+       *
+       * 段0（fixref）は data-nq-fix を最優先で採るので、目印が別の要素に
+       * 付いていると、指し直しても次の描画で目印側に戻り locator_live まで
+       * 上書きされる。目印を消せるのは直した本人だけなので、そうなると
+       * 画面の中では二度と直せない。人が指したほうを強いものとして扱う。
+       */
       api
-        .reanchor([{ id, locator: collectLocator(target) }])
+        .reanchor([{ id, locator: { ...collectLocator(target), pinnedByHuman: true } }])
         .then(() => {
           toast('依頼 #' + seq + ' の箇所を覚え直しました');
           loadPins();
@@ -654,15 +662,19 @@ function start(
      */
     const matched = new Map<string, ReturnType<typeof findByLocator>>();
     let anyContentHit = false;
+    // 人が指し直した錨には段0（fixref）を使わない。目印が別の要素に
+    // 付いていると、指し直しを毎回上書きして無かったことにしてしまう
+    const fixSeqOf = (p: (typeof pins)[number]) =>
+      p.locator.pinnedByHuman ? undefined : p.seq;
     for (const p of pins) {
-      const hit = findByLocator(p.locator, { fixSeq: p.seq });
+      const hit = findByLocator(p.locator, { fixSeq: fixSeqOf(p) });
       matched.set(p.id, hit);
       if (hit) anyContentHit = true;
     }
     if (anyContentHit) {
       for (const p of pins) {
         if (matched.get(p.id)) continue;
-        matched.set(p.id, findByLocator(p.locator, { fixSeq: p.seq, allowStructural: true }));
+        matched.set(p.id, findByLocator(p.locator, { fixSeq: fixSeqOf(p), allowStructural: true }));
       }
     }
 
@@ -758,7 +770,11 @@ function start(
         (hit.tier === 'confirmed' && hit.via === 'content') ||
         rescued
       ) {
-        const next = collectLocator(hit.el);
+        // 人が指し直した印は引き継ぐ。落とすと次の描画で段0 が復活し、
+        // 目印の付いた別要素へ戻ってしまう（指し直しが1回きりで消える）
+        const next = p.locator.pinnedByHuman
+          ? { ...collectLocator(hit.el), pinnedByHuman: true }
+          : collectLocator(hit.el);
         // 変わっていないなら送らない。開くたびに書き込むことになる
         if (anchorKey(next) !== anchorKey(p.locator)) fresh.push({ id: p.id, locator: next });
       }

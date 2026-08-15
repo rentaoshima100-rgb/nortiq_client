@@ -25,6 +25,12 @@ export const LocatorSchema = z.object({
   deepTextHash: z.string().max(80).nullable().optional(),
   hrefKey: z.string().max(2048).nullable().optional(),
   richPath: z.string().max(1024).nullable().optional(),
+  // 採取時に要素へ付いていた data-nq-fix。handoff がヒントとして読む。
+  // ここに書き忘れると zod が黙って落とし、DB に残らない（上のコメントの対）。
+  fixRef: z.string().max(256).nullable().optional(),
+  // 人が「指し直し」で決めた錨。true のとき照合の段0（fixref）を使わない。
+  // 目印が別の要素に付いていると、人の指し直しを上書きしてしまうため。
+  pinnedByHuman: z.boolean().nullable().optional(),
 });
 
 /** 設計 6.8 の target（img / picture のときだけ） */
