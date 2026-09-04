@@ -251,12 +251,20 @@ export function openFeedback(o: FeedbackOptions): { destroy(): void } {
       const meta = el('div', 'meta');
       meta.appendChild(el('span', undefined, fmtDate(r.createdAt)));
       meta.appendChild(el('span', undefined, r.pagePath));
+      /*
+       * 完了・見送りまで済んだ依頼は「次回」ではない。
+       *
+       * carriedOver は round_id が空かどうかでしかなく、締切後に届いた分を
+       * ラウンドを開かないまま直すと、社内で完了にしたあとも空のまま残る。
+       * 状態を先に見ないと、直したはずの依頼が「次回」に見え続ける。
+       */
+      const carry = r.carriedOver && r.status !== 'done' && r.status !== 'wont_fix';
       const st = r.question
         ? el('span', 'st pending', '保留中')
         : el(
             'span',
-            'st ' + (r.carriedOver ? 'carry' : r.status),
-            r.carriedOver ? '次回' : statusLabel(r.status),
+            'st ' + (carry ? 'carry' : r.status),
+            carry ? '次回' : statusLabel(r.status),
           );
       meta.appendChild(st);
       m.appendChild(meta);

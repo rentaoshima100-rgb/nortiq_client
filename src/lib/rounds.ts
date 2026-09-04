@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { adminDb } from '@/lib/supabase/admin';
 import { logEvent, type Actor } from '@/lib/events';
-import type { ProjectRow } from '@/lib/types';
+import type { ProjectRow, RequestStatus } from '@/lib/types';
 
 export type RoundStatus =
   | 'open'
@@ -462,4 +462,26 @@ export function daysUntil(iso: string | null): number | null {
   const ms = new Date(iso).getTime() - Date.now();
   if (!Number.isFinite(ms)) return null;
   return Math.max(0, Math.ceil(ms / 86400_000));
+}
+
+/**
+ * この依頼は「次回持ち越し」か（8.4）
+ *
+ * round_id が null なのは「まだどのラウンドにも入っていない」という意味しか
+ * 持たない。**完了・見送りまで済んだ依頼にも起こる**（締切後に届いた分を、
+ * 次のラウンドを開かないまま社内で直したとき）。round_id だけで判定すると、
+ * 社内で完了にした依頼がクライアントの画面では「次回持ち越し」のまま残る。
+ *
+ * 終端まで行った依頼は、もう次のラウンドを待っていない。状態を先に見る。
+ */
+const TERMINAL_REQUEST_STATUSES: RequestStatus[] = ['done', 'wont_fix'];
+
+export function isCarriedOver(
+  r: { round_id: string | null; status: string },
+  roundsEnabled: boolean,
+): boolean {
+  // ラウンド制を切っている案件には締切が無いので、持ち越しも起きない
+  if (!roundsEnabled) return false;
+  if (r.round_id !== null) return false;
+  return !TERMINAL_REQUEST_STATUSES.includes(r.status as RequestStatus);
 }

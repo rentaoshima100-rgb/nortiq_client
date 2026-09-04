@@ -97,7 +97,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     .from('requests')
     .select('id', { count: 'exact', head: true })
     .eq('project_id', id)
-    .is('round_id', null);
+    .is('round_id', null)
+    // 完了・見送りまで済んだ依頼は、もう次のラウンドを待っていない
+    .not('status', 'in', '(done,wont_fix)');
 
   const [{ data: snapshots }, { count: unintended }] = await Promise.all([
     db

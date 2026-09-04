@@ -3,6 +3,7 @@ import { errorJson, json } from '@/lib/http';
 import {
   activeRound,
   daysUntil,
+  isCarriedOver,
   jaStatus,
   runDueTransitions,
   usedFreeRounds,
@@ -79,7 +80,7 @@ export async function GET(req: Request) {
     .order('seq', { ascending: false })
     .limit(60);
 
-  const carriedOver = (reqs ?? []).filter((r) => r.round_id === null).length;
+  const carriedOver = (reqs ?? []).filter((r) => isCarriedOver(r, roundsEnabled)).length;
   const inRound = round ? (reqs ?? []).filter((r) => r.round_id === round.id) : [];
 
   return json(
@@ -124,7 +125,7 @@ export async function GET(req: Request) {
         question: r.client_question ?? null,
         answered: !!r.client_answer,
         inCurrentRound: !!round && r.round_id === round.id,
-        carriedOver: r.round_id === null,
+        carriedOver: isCarriedOver(r, roundsEnabled),
         // 目印が外れたときの手がかり。**依頼を出した当時の**値を出す。
         // 「そのとき何と書いてあったか」「ページのどのあたりか」が分かれば、
         // 本人はたいてい思い出せる。

@@ -113,7 +113,12 @@ export async function POST(req: Request) {
   await afterRequestCreated(auth.project, roundId, db);
 
   return json(
-    { id: inserted.id, seq: inserted.seq, carriedOver: roundId === null },
+    {
+      id: inserted.id,
+      seq: inserted.seq,
+      // ラウンド制を切っている案件では持ち越しが起きない（8.4）
+      carriedOver: auth.project.rounds_enabled !== false && roundId === null,
+    },
     { status: 201, headers },
   );
 }
